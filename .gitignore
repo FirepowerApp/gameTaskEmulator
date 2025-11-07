@@ -1,0 +1,12 @@
+# Build output directory
+bin/
+
+# Environment files
+.env*
+!.env.example
+
+# OS files
+.DS_Store
+
+# Data files
+data
