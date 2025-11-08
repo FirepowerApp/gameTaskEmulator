@@ -235,6 +235,139 @@ The program provides detailed logging of:
 - Task creation results
 - Error conditions
 
+## Deployment
+
+### Container Deployment
+
+The application is available as a Docker container and automatically built via GitHub Actions.
+
+#### Container Image
+
+The container image is published to GitHub Container Registry (ghcr.io) on every push to main:
+
+```
+ghcr.io/firepowerapp/gametaskemulator:latest
+```
+
+#### Running with Docker
+
+You can run the application directly using Docker:
+
+```bash
+docker pull ghcr.io/firepowerapp/gametaskemulator:latest
+docker run --rm ghcr.io/firepowerapp/gametaskemulator:latest -today -teams CHI
+```
+
+#### Using the Run Script
+
+The repository includes a `run.sh` script that simplifies container execution:
+
+```bash
+# Run with default settings (Dallas Stars, today's games)
+./run.sh
+
+# Run with specific team
+./run.sh -today -teams CHI
+
+# Run with multiple teams
+./run.sh -today -teams CHI,DAL,BOS
+
+# Run in production mode
+./run.sh -prod -today -teams DAL
+```
+
+The script automatically:
+- Pulls the latest container image
+- Mounts Google Cloud credentials if available
+- Passes through all command-line flags
+
+### Systemd Installation (Linux)
+
+For automated daily execution on Linux systems, use the installation script:
+
+#### Quick Install
+
+Install with default settings (Dallas Stars, runs daily at 6:00 AM):
+
+```bash
+sudo ./install.sh
+```
+
+#### Custom Installation
+
+Install for specific team(s):
+
+```bash
+# Single team
+sudo ./install.sh --team CHI
+
+# Multiple teams
+sudo ./install.sh --team CHI,DAL,BOS
+
+# With production mode
+sudo ./install.sh --team DAL --flags "-today -prod"
+
+# As specific user
+sudo ./install.sh --user myuser --team CHI
+```
+
+#### What Gets Installed
+
+The installation script:
+1. Copies files to `/opt/gameTaskEmulator`
+2. Creates systemd service and timer files
+3. Configures the service with your team preferences
+4. Enables daily execution at 6:00 AM (configurable)
+5. Sets up logging via systemd journal
+
+#### Managing the Service
+
+```bash
+# View timer status
+systemctl status gametask-emulator.timer
+
+# View service status
+systemctl status gametask-emulator.service
+
+# View logs
+journalctl -u gametask-emulator.service -f
+
+# Run manually now
+sudo systemctl start gametask-emulator.service
+
+# Edit configuration
+sudo nano /etc/default/gametask-emulator
+
+# Restart timer after config changes
+sudo systemctl restart gametask-emulator.timer
+
+# Disable automatic execution
+sudo systemctl disable gametask-emulator.timer
+```
+
+#### Configuration
+
+After installation, you can modify the configuration at `/etc/default/gametask-emulator`:
+
+```bash
+# Team city code (leave empty for Dallas Stars)
+TEAM_CODE=CHI
+
+# Additional flags
+ADDITIONAL_FLAGS=-today -prod
+
+# Google Cloud credentials (if using production mode)
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+```
+
+### GitHub Actions
+
+The repository includes a GitHub Action workflow (`.github/workflows/docker-publish.yml`) that:
+- Builds the Docker image on every push to main
+- Publishes to GitHub Container Registry
+- Supports multi-architecture builds (amd64, arm64)
+- Tags images with version numbers and commit SHAs
+
 ## Future Enhancements
 
 Potential improvements:

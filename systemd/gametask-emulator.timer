@@ -1,0 +1,19 @@
+[Unit]
+Description=Daily Game Task Emulator Timer
+Documentation=https://github.com/FirepowerApp/gameTaskEmulator
+Requires=gametask-emulator.service
+
+[Timer]
+# Run daily at 6:00 AM local time
+OnCalendar=daily
+# Set the specific time (can be customized during install)
+OnCalendar=*-*-* 06:00:00
+
+# If the system was off when the timer should have triggered, run it when system starts
+Persistent=true
+
+# Randomize the start time by up to 5 minutes to avoid thundering herd
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
