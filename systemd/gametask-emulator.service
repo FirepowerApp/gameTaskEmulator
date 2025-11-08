@@ -1,0 +1,37 @@
+[Unit]
+Description=Game Task Emulator - NHL Game Tracker Scheduler
+Documentation=https://github.com/FirepowerApp/gameTaskEmulator
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=%i
+WorkingDirectory=/opt/gameTaskEmulator
+
+# Environment file for configuration
+EnvironmentFile=-/etc/default/gametask-emulator
+
+# Set default values if not specified in environment file
+Environment="TEAM_CODE="
+Environment="ADDITIONAL_FLAGS=-today"
+
+# Execute the run script with team code if specified
+ExecStart=/bin/bash -c '/opt/gameTaskEmulator/run.sh ${ADDITIONAL_FLAGS} ${TEAM_CODE:+-teams} ${TEAM_CODE}'
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gametask-emulator
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Restart policy
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

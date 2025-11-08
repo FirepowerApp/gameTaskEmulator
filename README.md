@@ -235,6 +235,164 @@ The program provides detailed logging of:
 - Task creation results
 - Error conditions
 
+## Deployment
+
+### Container Deployment
+
+The application is available as a Docker container and automatically built via GitHub Actions.
+
+#### Container Image
+
+The container image is published to Docker Hub when pull requests are merged to main:
+
+```
+blnelson/firepowergametaskemulator:latest
+```
+
+#### Running with Docker
+
+You can run the application directly using Docker:
+
+```bash
+docker pull blnelson/firepowergametaskemulator:latest
+docker run --rm blnelson/firepowergametaskemulator:latest -today -teams CHI
+```
+
+#### Using the Run Script
+
+The repository includes a `run.sh` script that simplifies container execution:
+
+```bash
+# Run with default settings (Dallas Stars, today's games)
+./run.sh
+
+# Run with specific team
+./run.sh -today -teams CHI
+
+# Run with multiple teams
+./run.sh -today -teams CHI,DAL,BOS
+
+# Run in production mode
+./run.sh -prod -today -teams DAL
+
+# Force pull from registry (fail if network unavailable)
+./run.sh --force-pull -today -teams CHI
+```
+
+The script automatically:
+- Pulls the latest container image from Docker Hub
+- Falls back to locally cached image if registry pull fails
+- Mounts Google Cloud credentials if available
+- Passes through all command-line flags to the container
+
+**Run Script Options:**
+- `--force-pull`: Fail if unable to pull from registry (no fallback to local cache)
+
+**Default Behavior:**
+By default, if the script encounters a **network error** when pulling from Docker Hub (connection timeout, DNS failure, network unreachable), it will fall back to the last successfully pulled local image. This ensures the application can run even without internet connectivity.
+
+**Error Handling:**
+- **Network errors** (timeout, connection refused, DNS failure): Falls back to local cached image
+- **Authentication errors**: Always fails immediately (requires `docker login`)
+- **Image not found errors**: Always fails immediately (check image name)
+- **Force pull mode** (`--force-pull`): Always fails on any pull error (no fallback)
+
+### Systemd Installation (Linux)
+
+For automated daily execution on Linux systems, use the installation script:
+
+#### Quick Install
+
+Install with default settings (Dallas Stars, runs daily at 6:00 AM):
+
+```bash
+sudo ./install.sh
+```
+
+#### Custom Installation
+
+Install for specific team(s):
+
+```bash
+# Single team
+sudo ./install.sh --team CHI
+
+# Multiple teams
+sudo ./install.sh --team CHI,DAL,BOS
+
+# With production mode
+sudo ./install.sh --team DAL --flags "-today -prod"
+
+# As specific user
+sudo ./install.sh --user myuser --team CHI
+```
+
+#### What Gets Installed
+
+The installation script:
+1. Copies files to `/opt/gameTaskEmulator`
+2. Creates systemd service and timer files
+3. Configures the service with your team preferences
+4. Enables daily execution at 6:00 AM (configurable)
+5. Sets up logging via systemd journal
+
+#### Managing the Service
+
+```bash
+# View timer status
+systemctl status gametask-emulator.timer
+
+# View service status
+systemctl status gametask-emulator.service
+
+# View logs
+journalctl -u gametask-emulator.service -f
+
+# Run manually now
+sudo systemctl start gametask-emulator.service
+
+# Edit configuration
+sudo nano /etc/default/gametask-emulator
+
+# Restart timer after config changes
+sudo systemctl restart gametask-emulator.timer
+
+# Disable automatic execution
+sudo systemctl disable gametask-emulator.timer
+```
+
+#### Configuration
+
+After installation, you can modify the configuration at `/etc/default/gametask-emulator`:
+
+```bash
+# Team city code (leave empty for Dallas Stars)
+TEAM_CODE=CHI
+
+# Additional flags
+ADDITIONAL_FLAGS=-today -prod
+
+# Google Cloud credentials (if using production mode)
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+```
+
+### GitHub Actions
+
+The repository includes a GitHub Action workflow (`.github/workflows/docker-publish.yml`) that:
+- Builds the Docker image when pull requests are merged to main
+- Publishes to Docker Hub (requires `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` secrets)
+- Supports multi-architecture builds (amd64, arm64)
+- Tags images with version numbers and commit SHAs
+
+#### Setting Up Docker Hub Secrets
+
+To enable automated builds, add the following secrets to your GitHub repository:
+
+1. Go to your repository Settings → Secrets and variables → Actions
+2. Add two secrets:
+   - `DOCKERHUB_USERNAME`: Your Docker Hub username
+   - `DOCKERHUB_TOKEN`: Your Docker Hub access token (create one at https://hub.docker.com/settings/security)
+
 ## Future Enhancements
 
 Potential improvements:
