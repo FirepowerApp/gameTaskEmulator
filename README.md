@@ -274,12 +274,22 @@ The repository includes a `run.sh` script that simplifies container execution:
 
 # Run in production mode
 ./run.sh -prod -today -teams DAL
+
+# Force pull from registry (fail if network unavailable)
+./run.sh --force-pull -today -teams CHI
 ```
 
 The script automatically:
-- Pulls the latest container image
+- Pulls the latest container image from Docker Hub
+- Falls back to locally cached image if registry pull fails
 - Mounts Google Cloud credentials if available
-- Passes through all command-line flags
+- Passes through all command-line flags to the container
+
+**Run Script Options:**
+- `--force-pull`: Fail if unable to pull from registry (no fallback to local cache)
+
+**Default Behavior:**
+By default, if the script cannot pull from Docker Hub (network issue, authentication problem), it will use the last successfully pulled local image. This ensures the application can run even without internet connectivity. Use `--force-pull` to disable this behavior and always require the latest image from the registry.
 
 ### Systemd Installation (Linux)
 
