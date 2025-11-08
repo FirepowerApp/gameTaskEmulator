@@ -130,10 +130,41 @@ These tasks are consumed by the existing `watchGameUpdates` service in the Crash
 
 ### Building
 
-Use the project's build system:
+This project uses a custom build system (based on the CrashTheCrease backend build system) that compiles binaries and saves them to the `bin/` directory.
+
+#### Build System Usage
+
+The build system supports three main commands:
+
+**Build a specific target**:
 ```bash
 go run build.go -target schedulegametrackers
 ```
+
+**Build all available targets**:
+```bash
+go run build.go -all
+```
+
+**List available build targets**:
+```bash
+go run build.go -list
+```
+
+#### Build Output
+
+All binaries are compiled with `CGO_ENABLED=0` for static linking and saved to the `./bin/` directory. The `bin/` directory is excluded from version control via `.gitignore` to prevent binaries from being committed to the repository.
+
+After building, you can run the binary directly:
+```bash
+./bin/schedulegametrackers [options]
+```
+
+#### Available Build Targets
+
+- **schedulegametrackers**: NHL game tracker scheduler that creates Cloud Tasks for game monitoring
+  - Source: `./cmd/schedulegametrackers`
+  - Binary: `./bin/schedulegametrackers`
 
 ### Dependencies
 
