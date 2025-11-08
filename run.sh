@@ -5,7 +5,7 @@
 set -e
 
 # Configuration
-IMAGE="${DOCKER_IMAGE:-firepowerapp/gametaskemulator:latest}"
+IMAGE="${DOCKER_IMAGE:-blnelson/firepowergametaskemulator:latest}"
 
 # Colors for output
 RED='\033[0;31m'

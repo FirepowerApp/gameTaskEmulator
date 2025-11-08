@@ -246,7 +246,7 @@ The application is available as a Docker container and automatically built via G
 The container image is published to Docker Hub when pull requests are merged to main:
 
 ```
-firepowerapp/gametaskemulator:latest
+blnelson/firepowergametaskemulator:latest
 ```
 
 #### Running with Docker
@@ -254,8 +254,8 @@ firepowerapp/gametaskemulator:latest
 You can run the application directly using Docker:
 
 ```bash
-docker pull firepowerapp/gametaskemulator:latest
-docker run --rm firepowerapp/gametaskemulator:latest -today -teams CHI
+docker pull blnelson/firepowergametaskemulator:latest
+docker run --rm blnelson/firepowergametaskemulator:latest -today -teams CHI
 ```
 
 #### Using the Run Script
