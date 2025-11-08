@@ -60,30 +60,54 @@ check_local_image() {
 
 log_info "Pulling latest container image: ${IMAGE}"
 
-# Pull the latest image
+# Pull the latest image and capture error output
 PULL_SUCCESS=false
-if docker pull "${IMAGE}" 2>/dev/null; then
+PULL_ERROR=$(docker pull "${IMAGE}" 2>&1)
+PULL_EXIT_CODE=$?
+
+if [ $PULL_EXIT_CODE -eq 0 ]; then
     log_info "Successfully pulled image: ${IMAGE}"
     PULL_SUCCESS=true
 else
-    log_warn "Failed to pull image from registry"
+    # Analyze the error to determine if it's network-related
+    IS_NETWORK_ERROR=false
 
+    # Check for common network error patterns
+    if echo "$PULL_ERROR" | grep -qiE '(dial tcp|connection refused|timeout|network unreachable|no route to host|temporary failure|name resolution|failed to resolve)'; then
+        IS_NETWORK_ERROR=true
+        log_warn "Network error while pulling image from registry"
+    elif echo "$PULL_ERROR" | grep -qiE '(unauthorized|authentication required|denied|forbidden)'; then
+        log_error "Authentication failed when pulling image"
+        log_error "Make sure you are authenticated to Docker Hub:"
+        log_error "  docker login"
+        exit 1
+    elif echo "$PULL_ERROR" | grep -qiE '(not found|manifest unknown)'; then
+        log_error "Image not found in registry: ${IMAGE}"
+        log_error "Please verify the image name is correct"
+        exit 1
+    else
+        log_warn "Failed to pull image from registry"
+        log_warn "Error: ${PULL_ERROR}"
+    fi
+
+    # Only attempt fallback for network errors (or unclassified errors if not force pull)
     if [ "$FORCE_PULL" = true ]; then
         log_error "Force pull mode enabled - failing due to registry pull failure"
-        log_warn "Make sure you are authenticated to Docker Hub:"
-        log_warn "  docker login"
         exit 1
     fi
 
-    # Try to use local image
-    if check_local_image; then
-        log_warn "Using locally cached image: ${IMAGE}"
-        log_warn "This may not be the latest version"
+    if [ "$IS_NETWORK_ERROR" = true ] || [ "$FORCE_PULL" = false ]; then
+        # Try to use local image
+        if check_local_image; then
+            log_warn "Using locally cached image: ${IMAGE}"
+            log_warn "This may not be the latest version"
+        else
+            log_error "No local image found: ${IMAGE}"
+            log_error "Unable to pull from registry and no cached image available"
+            exit 1
+        fi
     else
-        log_error "No local image found: ${IMAGE}"
-        log_error "Unable to pull from registry and no cached image available"
-        log_warn "Make sure you are authenticated to Docker Hub:"
-        log_warn "  docker login"
+        # Non-network error in non-force mode - still fail
         exit 1
     fi
 fi

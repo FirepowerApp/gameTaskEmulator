@@ -289,7 +289,13 @@ The script automatically:
 - `--force-pull`: Fail if unable to pull from registry (no fallback to local cache)
 
 **Default Behavior:**
-By default, if the script cannot pull from Docker Hub (network issue, authentication problem), it will use the last successfully pulled local image. This ensures the application can run even without internet connectivity. Use `--force-pull` to disable this behavior and always require the latest image from the registry.
+By default, if the script encounters a **network error** when pulling from Docker Hub (connection timeout, DNS failure, network unreachable), it will fall back to the last successfully pulled local image. This ensures the application can run even without internet connectivity.
+
+**Error Handling:**
+- **Network errors** (timeout, connection refused, DNS failure): Falls back to local cached image
+- **Authentication errors**: Always fails immediately (requires `docker login`)
+- **Image not found errors**: Always fails immediately (check image name)
+- **Force pull mode** (`--force-pull`): Always fails on any pull error (no fallback)
 
 ### Systemd Installation (Linux)
 
