@@ -5,10 +5,7 @@
 set -e
 
 # Configuration
-REGISTRY="ghcr.io"
-REPOSITORY_OWNER="${REPOSITORY_OWNER:-$(git config --get remote.origin.url | sed -n 's#.*/\([^/]*\)/.*#\1#p')}"
-REPOSITORY_NAME="${REPOSITORY_NAME:-$(basename -s .git $(git config --get remote.origin.url))}"
-IMAGE="${REGISTRY}/${REPOSITORY_OWNER}/${REPOSITORY_NAME}:latest"
+IMAGE="${DOCKER_IMAGE:-firepowerapp/gametaskemulator:latest}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -47,8 +44,8 @@ if docker pull "${IMAGE}"; then
     log_info "Successfully pulled image: ${IMAGE}"
 else
     log_error "Failed to pull image: ${IMAGE}"
-    log_warn "Make sure you are authenticated to the container registry:"
-    log_warn "  docker login ${REGISTRY}"
+    log_warn "Make sure you are authenticated to Docker Hub:"
+    log_warn "  docker login"
     exit 1
 fi
 
@@ -69,6 +66,11 @@ fi
 
 # Set timezone to host timezone
 DOCKER_ARGS+=(-e "TZ=$(cat /etc/timezone 2>/dev/null || echo 'UTC')")
+
+# Network mode for local development (allows access to host.docker.internal)
+if [[ "$*" != *"-prod"* ]]; then
+    DOCKER_ARGS+=(--add-host=host.docker.internal:host-gateway)
+fi
 
 # Run the container
 docker run --rm \

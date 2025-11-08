@@ -243,10 +243,10 @@ The application is available as a Docker container and automatically built via G
 
 #### Container Image
 
-The container image is published to GitHub Container Registry (ghcr.io) on every push to main:
+The container image is published to Docker Hub when pull requests are merged to main:
 
 ```
-ghcr.io/firepowerapp/gametaskemulator:latest
+firepowerapp/gametaskemulator:latest
 ```
 
 #### Running with Docker
@@ -254,8 +254,8 @@ ghcr.io/firepowerapp/gametaskemulator:latest
 You can run the application directly using Docker:
 
 ```bash
-docker pull ghcr.io/firepowerapp/gametaskemulator:latest
-docker run --rm ghcr.io/firepowerapp/gametaskemulator:latest -today -teams CHI
+docker pull firepowerapp/gametaskemulator:latest
+docker run --rm firepowerapp/gametaskemulator:latest -today -teams CHI
 ```
 
 #### Using the Run Script
@@ -363,10 +363,19 @@ GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 ### GitHub Actions
 
 The repository includes a GitHub Action workflow (`.github/workflows/docker-publish.yml`) that:
-- Builds the Docker image on every push to main
-- Publishes to GitHub Container Registry
+- Builds the Docker image when pull requests are merged to main
+- Publishes to Docker Hub (requires `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` secrets)
 - Supports multi-architecture builds (amd64, arm64)
 - Tags images with version numbers and commit SHAs
+
+#### Setting Up Docker Hub Secrets
+
+To enable automated builds, add the following secrets to your GitHub repository:
+
+1. Go to your repository Settings → Secrets and variables → Actions
+2. Add two secrets:
+   - `DOCKERHUB_USERNAME`: Your Docker Hub username
+   - `DOCKERHUB_TOKEN`: Your Docker Hub access token (create one at https://hub.docker.com/settings/security)
 
 ## Future Enhancements
 
