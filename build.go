@@ -19,17 +19,17 @@ type BuildTarget struct {
 
 // Available build targets
 var buildTargets = map[string]BuildTarget{
-	"schedulegametrackers": {
-		Name:        "schedulegametrackers",
-		SourcePath:  "./cmd/schedulegametrackers",
-		BinaryName:  "schedulegametrackers",
+	"gameTaskEmulator": {
+		Name:        "gameTaskEmulator",
+		SourcePath:  "./cmd/gameTaskEmulator",
+		BinaryName:  "gameTaskEmulator",
 		Description: "NHL game tracker scheduler that creates Cloud Tasks for game monitoring",
 	},
 }
 
 func main() {
 	var (
-		target = flag.String("target", "", "Target to build (schedulegametrackers)")
+		target = flag.String("target", "", "Target to build (gameTaskEmulator)")
 		list   = flag.Bool("list", false, "List available build targets")
 		all    = flag.Bool("all", false, "Build all available targets")
 	)
@@ -70,7 +70,7 @@ func main() {
 }
 
 func showUsage() {
-	fmt.Println("Build system for scheduleGameTrackers")
+	fmt.Println("Build system for gameTaskEmulator")
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  go run build.go -target <target>  Build specific target")
@@ -78,7 +78,7 @@ func showUsage() {
 	fmt.Println("  go run build.go -list             List available targets")
 	fmt.Println()
 	fmt.Println("Examples:")
-	fmt.Println("  go run build.go -target schedulegametrackers")
+	fmt.Println("  go run build.go -target gameTaskEmulator")
 	fmt.Println("  go run build.go -all")
 	fmt.Println()
 	fmt.Println("All binaries are saved to ./bin/")

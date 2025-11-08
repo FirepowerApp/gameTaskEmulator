@@ -1,4 +1,4 @@
-# Schedule Game Trackers
+# Game Task Emulator
 
 This program fetches NHL game schedules and creates Google Cloud Tasks for game tracking. It's designed to work with the CrashTheCrease backend system to automatically schedule game monitoring tasks.
 
@@ -18,7 +18,7 @@ This program fetches NHL game schedules and creates Google Cloud Tasks for game 
 
 Run with default settings (Dallas Stars games for today, local task queue):
 ```bash
-./schedulegametrackers
+./gameTaskEmulator
 ```
 
 ### Command Line Options
@@ -37,37 +37,37 @@ Run with default settings (Dallas Stars games for today, local task queue):
 
 **Get Dallas Stars games for today (default)**:
 ```bash
-./schedulegametrackers
+./gameTaskEmulator
 ```
 
 **Get today's upcoming games for Chicago Blackhawks**:
 ```bash
-./schedulegametrackers -today -teams CHI
+./gameTaskEmulator -today -teams CHI
 ```
 
 **Get today's upcoming games for multiple teams using city codes**:
 ```bash
-./schedulegametrackers -today -teams CHI,DAL,BOS
+./gameTaskEmulator -today -teams CHI,DAL,BOS
 ```
 
 **Get games for specific teams on a future date (mixing city codes and IDs)**:
 ```bash
-./schedulegametrackers -date 2024-03-15 -teams CHI,25,1
+./gameTaskEmulator -date 2024-03-15 -teams CHI,25,1
 ```
 
 **Get all games for tomorrow**:
 ```bash
-./schedulegametrackers -date 2024-03-16 -all
+./gameTaskEmulator -date 2024-03-16 -all
 ```
 
 **Run in test mode**:
 ```bash
-./schedulegametrackers -test
+./gameTaskEmulator -test
 ```
 
 **Send tasks to production**:
 ```bash
-./schedulegametrackers -prod -date 2024-03-20
+./gameTaskEmulator -prod -date 2024-03-20
 ```
 
 ## NHL Team IDs and City Codes
@@ -138,7 +138,7 @@ The build system supports three main commands:
 
 **Build a specific target**:
 ```bash
-go run build.go -target schedulegametrackers
+go run build.go -target gameTaskEmulator
 ```
 
 **Build all available targets**:
@@ -157,14 +157,14 @@ All binaries are compiled with `CGO_ENABLED=0` for static linking and saved to t
 
 After building, you can run the binary directly:
 ```bash
-./bin/schedulegametrackers [options]
+./bin/gameTaskEmulator [options]
 ```
 
 #### Available Build Targets
 
-- **schedulegametrackers**: NHL game tracker scheduler that creates Cloud Tasks for game monitoring
-  - Source: `./cmd/schedulegametrackers`
-  - Binary: `./bin/schedulegametrackers`
+- **gameTaskEmulator**: NHL game tracker scheduler that creates Cloud Tasks for game monitoring
+  - Source: `./cmd/gameTaskEmulator`
+  - Binary: `./bin/gameTaskEmulator`
 
 ### Dependencies
 
@@ -177,7 +177,7 @@ The program requires:
 
 Test mode can be used for development without making actual API calls:
 ```bash
-./schedulegametrackers -test
+./gameTaskEmulator -test
 ```
 
 ### Local Development
