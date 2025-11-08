@@ -1,4 +1,4 @@
-module github.com/CrashTheCrease/backend/scheduleGameTrackers
+module github.com/CrashTheCrease/backend/gameTaskEmulator
 
 go 1.21
 
