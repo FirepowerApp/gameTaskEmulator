@@ -1,6 +1,9 @@
 # Build output directory
 bin/
 
+# Compiled binaries
+gameTaskEmulator
+
 # Environment files
 .env*
 !.env.example

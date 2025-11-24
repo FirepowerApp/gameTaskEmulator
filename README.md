@@ -16,58 +16,75 @@ This program fetches NHL game schedules and creates Google Cloud Tasks for game 
 
 ### Basic Usage
 
-Run with default settings (Dallas Stars games for today, local task queue):
+Run with default settings (Dallas Stars games for today, sending to local host):
 ```bash
-./gameTaskEmulator
+./gameTaskEmulator -local
+```
+
+Or send to a custom host:
+```bash
+./gameTaskEmulator -host https://example.com/api
 ```
 
 ### Command Line Options
 
+#### Required Flags (one must be specified)
+- `-local`: Send requests to local host at `http://host.docker.internal:8080`
+- `-host URL`: Custom host URL to send requests to (e.g., `https://example.com/api`)
+
+**Note**: You must specify either `-local` or `-host <url>`. The application will exit with an error if neither is provided, or if both are specified.
+
+#### Optional Flags
 - `-date YYYY-MM-DD`: Specify a future date to query (default: today)
 - `-teams ID1,ID2,ID3`: Comma-separated list of NHL team IDs or city codes to filter for (supports both formats)
 - `-today`: Filter for today's upcoming games only (overrides -date)
 - `-all`: Include all teams playing on the specified date
-- `-test`: Run in test mode with predefined game data
+- `-test`: Run in test mode with predefined game data. Sets `ShouldNotify: false` in the payload (default: `ShouldNotify: true`)
 - `-prod`: Send tasks to production queue instead of local emulator
-- `-project PROJECT_ID`: GCP Project ID (default: "crash-the-crease")
-- `-location LOCATION`: GCP Location (default: "us-central1")
-- `-queue QUEUE_NAME`: Task Queue name (default: "game-updates")
+- `-project PROJECT_ID`: GCP Project ID (default: "localproject")
+- `-location LOCATION`: GCP Location (default: "us-south1")
+- `-queue QUEUE_NAME`: Task Queue name (default: "gameschedule")
 
 ### Examples
 
-**Get Dallas Stars games for today (default)**:
+**Get Dallas Stars games for today to local host**:
 ```bash
-./gameTaskEmulator
+./gameTaskEmulator -local
 ```
 
-**Get today's upcoming games for Chicago Blackhawks**:
+**Get today's upcoming games for Chicago Blackhawks to local host**:
 ```bash
-./gameTaskEmulator -today -teams CHI
+./gameTaskEmulator -local -today -teams CHI
 ```
 
 **Get today's upcoming games for multiple teams using city codes**:
 ```bash
-./gameTaskEmulator -today -teams CHI,DAL,BOS
+./gameTaskEmulator -local -today -teams CHI,DAL,BOS
 ```
 
 **Get games for specific teams on a future date (mixing city codes and IDs)**:
 ```bash
-./gameTaskEmulator -date 2024-03-15 -teams CHI,25,1
+./gameTaskEmulator -local -date 2024-03-15 -teams CHI,25,1
 ```
 
 **Get all games for tomorrow**:
 ```bash
-./gameTaskEmulator -date 2024-03-16 -all
+./gameTaskEmulator -local -date 2024-03-16 -all
 ```
 
-**Run in test mode**:
+**Run in test mode (sets ShouldNotify: false in payload)**:
 ```bash
-./gameTaskEmulator -test
+./gameTaskEmulator -local -test
 ```
 
-**Send tasks to production**:
+**Send tasks to a custom host URL**:
 ```bash
-./gameTaskEmulator -prod -date 2024-03-20
+./gameTaskEmulator -host https://example.com/api/tasks -today -teams DAL
+```
+
+**Send tasks to production cloud function**:
+```bash
+./gameTaskEmulator -host https://us-south1-myproject.cloudfunctions.net/watchGameUpdates -today
 ```
 
 ## NHL Team IDs and City Codes
@@ -120,9 +137,14 @@ You can use either format: `-teams CHI,DAL` or `-teams 16,25` or mix them: `-tea
 
 ## Task Scheduling
 
-The program schedules Google Cloud Tasks to run 30 minutes before each game's start time. Each task contains:
-- Game ID
-- Game execution end time (game start + 4 hours)
+The program schedules Google Cloud Tasks to run 5 minutes before each game's start time. Each task contains:
+- Game information (ID, date, start time, home team, away team)
+- Execution end time (game start + 4 hours)
+- ShouldNotify flag (false when `-test` flag is used, true otherwise)
+
+The target URL for tasks is determined by the `-local` or `-host` flags:
+- `-local`: Sends to `http://host.docker.internal:8080`
+- `-host <url>`: Sends to the specified URL
 
 These tasks are consumed by the existing `watchGameUpdates` service in the CrashTheCrease backend.
 
@@ -175,14 +197,22 @@ The program requires:
 
 ### Testing
 
-Test mode can be used for development without making actual API calls:
+Test mode can be used for development without making actual API calls. The `-test` flag uses predefined game data and sets `ShouldNotify: false` in the task payload to prevent notifications:
 ```bash
-./gameTaskEmulator -test
+./gameTaskEmulator -local -test
+```
+
+You can also test with a custom host:
+```bash
+./gameTaskEmulator -host https://test.example.com/api -test
 ```
 
 ### Local Development
 
-For local development, ensure the local Cloud Tasks emulator is running and use the default settings (without `-prod` flag).
+For local development, ensure the local Cloud Tasks emulator is running and use the `-local` flag to send tasks to `http://host.docker.internal:8080`:
+```bash
+./gameTaskEmulator -local -today -teams DAL
+```
 
 ## Configuration
 
@@ -196,10 +226,15 @@ export GOOGLE_APPLICATION_CREDENTIALS="path/to/service-account-key.json"
 
 ### Production Configuration
 
-When using `-prod` flag, ensure:
-1. GCP credentials are properly configured
-2. The target Cloud Function is deployed
+When using `-host` flag with a production URL, ensure:
+1. GCP credentials are properly configured (if required by the endpoint)
+2. The target endpoint is deployed and accessible
 3. The task queue exists in the specified project/location
+
+Example production usage:
+```bash
+./gameTaskEmulator -host https://us-south1-myproject.cloudfunctions.net/watchGameUpdates -today -teams DAL
+```
 
 ## Error Handling
 
@@ -255,7 +290,7 @@ You can run the application directly using Docker:
 
 ```bash
 docker pull blnelson/firepowergametaskemulator:latest
-docker run --rm blnelson/firepowergametaskemulator:latest -today -teams CHI
+docker run --rm blnelson/firepowergametaskemulator:latest -local -today -teams CHI
 ```
 
 #### Using the Run Script
@@ -263,20 +298,20 @@ docker run --rm blnelson/firepowergametaskemulator:latest -today -teams CHI
 The repository includes a `run.sh` script that simplifies container execution:
 
 ```bash
-# Run with default settings (Dallas Stars, today's games)
-./run.sh
+# Run with default settings to local host (Dallas Stars, today's games)
+./run.sh -local
 
-# Run with specific team
-./run.sh -today -teams CHI
+# Run with specific team to local host
+./run.sh -local -today -teams CHI
 
-# Run with multiple teams
-./run.sh -today -teams CHI,DAL,BOS
+# Run with multiple teams to local host
+./run.sh -local -today -teams CHI,DAL,BOS
 
-# Run in production mode
-./run.sh -prod -today -teams DAL
+# Run with custom host URL
+./run.sh -host https://example.com/api -today -teams DAL
 
 # Force pull from registry (fail if network unavailable)
-./run.sh --force-pull -today -teams CHI
+./run.sh --force-pull -local -today -teams CHI
 ```
 
 The script automatically:
@@ -314,17 +349,17 @@ sudo ./install.sh
 Install for specific team(s):
 
 ```bash
-# Single team
-sudo ./install.sh --team CHI
+# Single team with local host
+sudo ./install.sh --team CHI --flags "-local -today"
 
-# Multiple teams
-sudo ./install.sh --team CHI,DAL,BOS
+# Multiple teams with local host
+sudo ./install.sh --team CHI,DAL,BOS --flags "-local -today"
 
-# With production mode
-sudo ./install.sh --team DAL --flags "-today -prod"
+# With custom host URL
+sudo ./install.sh --team DAL --flags "-host https://example.com/api -today"
 
 # As specific user
-sudo ./install.sh --user myuser --team CHI
+sudo ./install.sh --user myuser --team CHI --flags "-local -today"
 ```
 
 #### What Gets Installed
@@ -369,10 +404,13 @@ After installation, you can modify the configuration at `/etc/default/gametask-e
 # Team city code (leave empty for Dallas Stars)
 TEAM_CODE=CHI
 
-# Additional flags
-ADDITIONAL_FLAGS=-today -prod
+# Additional flags (must include either -local or -host)
+ADDITIONAL_FLAGS=-local -today
 
-# Google Cloud credentials (if using production mode)
+# Or with custom host:
+# ADDITIONAL_FLAGS=-host https://example.com/api -today
+
+# Google Cloud credentials (if using custom host)
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 ```
 
