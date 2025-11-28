@@ -40,6 +40,8 @@ type Config struct {
 	ProjectID  string // GCP Project ID
 	Location   string // GCP Location
 	QueueName  string // Task Queue name
+	LocalMode  bool   // Whether to send requests to local host
+	HostURL    string // Custom host URL for sending requests
 }
 
 // Game represents a single NHL game with relevant information
@@ -93,6 +95,7 @@ type GameInfo struct {
 type TaskPayload struct {
 	Game         GameInfo `json:"game"`
 	ExecutionEnd *string  `json:"execution_end,omitempty"`
+	ShouldNotify bool     `json:"ShouldNotify"`
 }
 
 // cityCodeToTeamID maps NHL team city codes to their corresponding team IDs
@@ -164,8 +167,20 @@ func parseFlags() *Config {
 	flag.StringVar(&config.ProjectID, "project", "localproject", "GCP Project ID")
 	flag.StringVar(&config.Location, "location", "us-south1", "GCP Location")
 	flag.StringVar(&config.QueueName, "queue", "gameschedule", "Task Queue name")
+	flag.BoolVar(&config.LocalMode, "local", false, "Send requests to local host (http://host.docker.internal:8080)")
+	flag.StringVar(&config.HostURL, "host", "", "Custom host URL to send requests to")
 
 	flag.Parse()
+
+	// Validate that either -local or -host is provided
+	if !config.LocalMode && config.HostURL == "" {
+		log.Fatalf("Error: Either -local or -host <url> must be provided")
+	}
+
+	// Validate that both -local and -host are not provided at the same time
+	if config.LocalMode && config.HostURL != "" {
+		log.Fatalf("Error: Cannot specify both -local and -host flags")
+	}
 
 	// Handle today flag - overrides date setting
 	if config.Today {
@@ -367,6 +382,7 @@ func createCloudTask(ctx context.Context, client taskspb.CloudTasksClient, confi
 			},
 		},
 		ExecutionEnd: &executionEnd,
+		ShouldNotify: !config.TestMode,
 	}
 
 	payloadJSON, err := json.Marshal(payload)
@@ -374,12 +390,12 @@ func createCloudTask(ctx context.Context, client taskspb.CloudTasksClient, confi
 		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	// Determine the target URL based on production flag
+	// Determine the target URL based on host configuration
 	var targetURL string
-	if config.Production {
-		targetURL = fmt.Sprintf("https://%s-%s.cloudfunctions.net/watchGameUpdates", config.ProjectID, config.Location)
-	} else {
+	if config.LocalMode {
 		targetURL = "http://host.docker.internal:8080"
+	} else {
+		targetURL = config.HostURL
 	}
 
 	// Schedule task to run 5 minutes before game start
