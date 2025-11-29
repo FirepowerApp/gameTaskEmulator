@@ -36,6 +36,7 @@ type Config struct {
 	AllTeams   bool   // Whether to include all teams
 	Today      bool   // Whether to filter for today's upcoming games only
 	Production bool   // Whether to use production task queue
+	Shootout   bool   // Whether to use shootout game ID (2024030412)
 	ProjectID  string // GCP Project ID
 	Location   string // GCP Location
 	QueueName  string // Task Queue name
@@ -162,6 +163,7 @@ func parseFlags() *Config {
 	flag.BoolVar(&config.AllTeams, "all", false, "Include all teams playing on the specified date")
 	flag.BoolVar(&config.Today, "today", false, "Filter for today's upcoming games only (overrides -date)")
 	flag.BoolVar(&config.Production, "prod", false, "Send tasks to production queue instead of local emulator")
+	flag.BoolVar(&config.Shootout, "shootout", false, "Use shootout game ID (2024030412) instead of default (2024030411)")
 	flag.StringVar(&config.ProjectID, "project", "localproject", "GCP Project ID")
 	flag.StringVar(&config.Location, "location", "us-south1", "GCP Location")
 	flag.StringVar(&config.QueueName, "queue", "gameschedule", "Task Queue name")
@@ -285,9 +287,14 @@ func filterUpcomingGames(games []Game) []Game {
 }
 
 // createTestGame creates a test game with predefined data for testing purposes
-func createTestGame() Game {
+func createTestGame(shootout bool) Game {
+	gameID := 2024030411
+	if shootout {
+		gameID = 2024030412
+	}
+
 	return Game{
-		ID:        20242025,
+		ID:        gameID,
 		GameDate:  time.Now().Format("2006-01-02"),
 		StartTime: time.Now().Format(time.RFC3339),
 		AwayTeam: struct {
@@ -492,8 +499,12 @@ func main() {
 	var games []Game
 
 	if config.TestMode {
-		log.Println("Running in test mode with predefined game data")
-		games = []Game{createTestGame()}
+		gameID := 2024030411
+		if config.Shootout {
+			gameID = 2024030412
+		}
+		log.Printf("Running in test mode with predefined game ID: %d", gameID)
+		games = []Game{createTestGame(config.Shootout)}
 	} else {
 		// Fetch games from NHL API
 		fetchedGames, err := fetchGamesForDate(config.Date)
