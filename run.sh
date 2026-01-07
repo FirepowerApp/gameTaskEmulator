@@ -5,7 +5,7 @@
 set -e
 
 # Configuration
-IMAGE="${DOCKER_IMAGE:-blnelson/firepowergametaskemulator:latest}"
+export DOCKER_IMAGE="${DOCKER_IMAGE:-blnelson/firepowergametaskemulator:latest}"
 FORCE_PULL=false
 
 # Colors for output
@@ -55,18 +55,25 @@ fi
 
 # Function to check if image exists locally
 check_local_image() {
-    docker image inspect "${IMAGE}" &> /dev/null
+    docker image inspect "${DOCKER_IMAGE}" &> /dev/null
 }
 
-log_info "Pulling latest container image: ${IMAGE}"
+# Export environment variables for docker-compose
+export TZ=$(cat /etc/timezone 2>/dev/null || echo 'UTC')
+if [ -n "${GOOGLE_APPLICATION_CREDENTIALS}" ] && [ -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]; then
+    export GOOGLE_APPLICATION_CREDENTIALS
+    log_info "Mounting Google Cloud credentials from ${GOOGLE_APPLICATION_CREDENTIALS}"
+fi
+
+log_info "Pulling latest container image: ${DOCKER_IMAGE}"
 
 # Pull the latest image and capture error output
 PULL_SUCCESS=false
-PULL_ERROR=$(docker pull "${IMAGE}" 2>&1)
+PULL_ERROR=$(docker compose pull 2>&1)
 PULL_EXIT_CODE=$?
 
 if [ $PULL_EXIT_CODE -eq 0 ]; then
-    log_info "Successfully pulled image: ${IMAGE}"
+    log_info "Successfully pulled image: ${DOCKER_IMAGE}"
     PULL_SUCCESS=true
 else
     # Analyze the error to determine if it's network-related
@@ -82,7 +89,7 @@ else
         log_error "  docker login"
         exit 1
     elif echo "$PULL_ERROR" | grep -qiE '(not found|manifest unknown)'; then
-        log_error "Image not found in registry: ${IMAGE}"
+        log_error "Image not found in registry: ${DOCKER_IMAGE}"
         log_error "Please verify the image name is correct"
         exit 1
     else
@@ -99,10 +106,10 @@ else
     if [ "$IS_NETWORK_ERROR" = true ] || [ "$FORCE_PULL" = false ]; then
         # Try to use local image
         if check_local_image; then
-            log_warn "Using locally cached image: ${IMAGE}"
+            log_warn "Using locally cached image: ${DOCKER_IMAGE}"
             log_warn "This may not be the latest version"
         else
-            log_error "No local image found: ${IMAGE}"
+            log_error "No local image found: ${DOCKER_IMAGE}"
             log_error "Unable to pull from registry and no cached image available"
             exit 1
         fi
@@ -114,31 +121,7 @@ fi
 
 log_info "Running container with provided flags: ${CONTAINER_ARGS[*]}"
 
-# Run the container with all passed-through arguments
-# Mount credentials if they exist
-RUN_ARGS=()
-
-# Check for Google Cloud credentials
-if [ -n "${GOOGLE_APPLICATION_CREDENTIALS}" ]; then
-    if [ -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]; then
-        RUN_ARGS+=(-v "${GOOGLE_APPLICATION_CREDENTIALS}:/secrets/gcp-key.json:ro")
-        RUN_ARGS+=(-e "GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp-key.json")
-        log_info "Mounting Google Cloud credentials from ${GOOGLE_APPLICATION_CREDENTIALS}"
-    fi
-fi
-
-# Set timezone to host timezone
-RUN_ARGS+=(-e "TZ=$(cat /etc/timezone 2>/dev/null || echo 'UTC')")
-
-# Network mode for local development (allows access to host.docker.internal)
-if [[ "${CONTAINER_ARGS[*]}" != *"-prod"* ]]; then
-    RUN_ARGS+=(--add-host=host.docker.internal:host-gateway)
-fi
-
-# Run the container
-docker run --rm \
-    "${RUN_ARGS[@]}" \
-    "${IMAGE}" \
-    "${CONTAINER_ARGS[@]}"
+# Run the container using docker compose
+docker compose run --rm game-task-emulator "${CONTAINER_ARGS[@]}"
 
 log_info "Container execution completed"

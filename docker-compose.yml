@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  game-task-emulator:
+    image: ${DOCKER_IMAGE:-blnelson/firepowergametaskemulator:latest}
+    pull_policy: if_not_present
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
+      - TZ=${TZ:-UTC}
+    volumes:
+      # Mount GCP credentials if they exist
+      - ${GOOGLE_APPLICATION_CREDENTIALS:-/dev/null}:/secrets/gcp-key.json:ro
+    extra_hosts:
+      # Allow container to access host services (like local emulator)
+      - "host.docker.internal:host-gateway"
