@@ -310,27 +310,59 @@ The repository includes a `run.sh` script that simplifies container execution:
 # Run with custom host URL
 ./run.sh -host https://example.com/api -today -teams DAL
 
-# Force pull from registry (fail if network unavailable)
-./run.sh --force-pull -local -today -teams CHI
+# Require successful pull (no fallback to cached image)
+./run.sh --no-fallback -local -today -teams CHI
+
+# Always fall back to cached on any error (lenient mode)
+./run.sh --lenient -local -today -teams CHI
 ```
 
 The script automatically:
-- Pulls the latest container image from Docker Hub
-- Falls back to locally cached image if registry pull fails
+- Checks for internet connectivity before attempting to pull
+- Pulls the latest container image from Docker Hub when internet is available
+- Intelligently falls back to locally cached image based on the error type
 - Mounts Google Cloud credentials if available
 - Passes through all command-line flags to the container
 
 **Run Script Options:**
-- `--force-pull`: Fail if unable to pull from registry (no fallback to local cache)
 
-**Default Behavior:**
-By default, if the script encounters a **network error** when pulling from Docker Hub (connection timeout, DNS failure, network unreachable), it will fall back to the last successfully pulled local image. This ensures the application can run even without internet connectivity.
+The script supports three fallback modes:
 
-**Error Handling:**
-- **Network errors** (timeout, connection refused, DNS failure): Falls back to local cached image
-- **Authentication errors**: Always fails immediately (requires `docker login`)
-- **Image not found errors**: Always fails immediately (check image name)
-- **Force pull mode** (`--force-pull`): Always fails on any pull error (no fallback)
+1. **Default (Smart Mode)** - Recommended for most users:
+   - Checks generic internet connectivity first
+   - If no internet → uses cached image with warning
+   - If internet available → attempts to pull from Docker Hub
+     - Success → runs with latest image
+     - Auth/not-found errors → fails immediately (these need to be fixed)
+     - Network errors to Docker Hub → fails (internet is up, so this indicates a real problem)
+
+2. **`--no-fallback`** - Strict mode (always requires latest):
+   - Always requires successful pull from registry
+   - Fails immediately if internet is unavailable
+   - Fails immediately on any pull error
+   - Use when you must ensure you're running the latest version
+
+3. **`--lenient`** - Permissive mode (always use cached if available):
+   - Attempts to use cached image on ANY error (auth, not-found, network)
+   - Only fails if no cached image exists
+   - Use for offline development or when registry issues should not block execution
+   - Warnings are logged for all errors
+
+**Error Handling Examples:**
+
+| Scenario | Default (Smart) | --no-fallback | --lenient |
+|----------|----------------|---------------|-----------|
+| No internet detected | ✅ Use cached | ❌ Fail | ✅ Use cached |
+| Internet up, pull succeeds | ✅ Use latest | ✅ Use latest | ✅ Use latest |
+| Internet up, auth error | ❌ Fail (fix auth) | ❌ Fail | ⚠️ Use cached |
+| Internet up, image not found | ❌ Fail (check name) | ❌ Fail | ⚠️ Use cached |
+| Internet up, Docker Hub timeout | ❌ Fail (investigate) | ❌ Fail | ⚠️ Use cached |
+
+**Choosing the Right Mode:**
+
+- **Use default (smart mode)** for normal operation - balances getting updates with offline resilience
+- **Use `--no-fallback`** in CI/CD or when you must guarantee latest version
+- **Use `--lenient`** for development in unreliable network conditions or when you want maximum availability
 
 ### Systemd Installation (Linux)
 
