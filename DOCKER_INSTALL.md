@@ -6,10 +6,13 @@ This guide explains how to install and run the Game Task Emulator using Docker w
 
 The Docker installation provides a containerized scheduled execution that runs the Game Task Emulator **every Monday at 5:00 AM**. This is an alternative to the systemd-based installation and is ideal for:
 
+- **Local development** - Sends tasks to local task queue at `http://host.docker.internal:8080` (default behavior)
 - Running on systems without systemd (e.g., macOS, Windows with Docker Desktop)
 - Container-based infrastructure (Kubernetes, Docker Swarm, etc.)
 - Cloud hosting environments
 - Simplified deployment and isolation
+
+**Default Configuration**: By default, the installation uses the `-local` flag to send tasks to a local task queue running on your machine at `http://host.docker.internal:8080`. This is the typical development workflow.
 
 ## Comparison: Systemd vs Docker
 
@@ -40,21 +43,23 @@ The Docker installation provides a containerized scheduled execution that runs t
 The easiest way to get started:
 
 ```bash
-# Basic installation (Dallas Stars, -today flag)
+# Basic installation (sends to local task queue, Dallas Stars)
 ./docker-install.sh
 
-# Install for specific team
+# Install for specific team (sends to local task queue)
 ./docker-install.sh --team CHI
 
-# Install for multiple teams
+# Install for multiple teams (sends to local task queue)
 ./docker-install.sh --team CHI,DAL,BOS
 
-# Install with production mode and credentials
-./docker-install.sh --team DAL --flags "-today -prod" --credentials ./gcp-key.json
-
-# Custom timezone
+# Custom timezone (still sends to local task queue)
 ./docker-install.sh --team CHI --timezone America/New_York
+
+# Production mode with GCP credentials (not local)
+./docker-install.sh --team DAL --flags "-today -prod" --credentials ./gcp-key.json
 ```
+
+**Note**: By default, all commands use the `-local` flag to send tasks to `http://host.docker.internal:8080` on your local machine. Make sure you have a local task queue running to receive these tasks.
 
 ### Method 2: Docker Compose
 
@@ -105,6 +110,45 @@ docker run -d \
   gametask-emulator:scheduled
 ```
 
+## Local Development Setup
+
+The default installation is configured for **local development**, sending tasks to a local task queue running on your machine.
+
+### Requirements for Local Development
+
+1. **Local Task Queue**: You must have a task queue service running locally on port 8080
+2. **Docker Networking**: The container uses `host.docker.internal:8080` to reach your local machine
+3. **Default Flags**: The installation automatically uses `-local -today` flags
+
+### How It Works
+
+When you run:
+```bash
+./docker-install.sh --team CHI
+```
+
+The container will:
+1. Run every Monday at 5:00 AM
+2. Execute: `/app/gameTaskEmulator -local -today -teams CHI`
+3. Send tasks to: `http://host.docker.internal:8080`
+
+This is equivalent to running on your local machine:
+```bash
+./bin/gameTaskEmulator -local -today -teams CHI
+```
+
+### Testing Your Local Setup
+
+To manually trigger a task and verify your local queue is receiving tasks:
+
+```bash
+# Run the task immediately (without waiting for the scheduled time)
+docker exec gametask-emulator-scheduled /app/run-task.sh
+
+# Watch the logs
+docker logs -f gametask-emulator-scheduled
+```
+
 ## Configuration
 
 ### Environment Variables
@@ -113,15 +157,15 @@ docker run -d \
 |----------|-------------|---------|---------|
 | `TZ` | Container timezone | UTC | `America/Chicago` |
 | `TEAM_CODE` | NHL team code(s), comma-separated | (none) | `CHI`, `CHI,DAL,BOS` |
-| `ADDITIONAL_FLAGS` | Flags passed to gameTaskEmulator | (none) | `-today -prod` |
+| `ADDITIONAL_FLAGS` | Flags passed to gameTaskEmulator | `-local -today` | `-local -today`, `-today -prod` |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP credentials inside container | (none) | `/secrets/gcp-key.json` |
 
 ### Available Application Flags
 
+- `-local` - **[DEFAULT]** Send to local task queue at `http://host.docker.internal:8080`
 - `-today` - Filter to today's upcoming games only
 - `-all` - Include all teams
-- `-prod` - Use production Cloud Tasks queue
-- `-local` - Send to local host (http://host.docker.internal:8080)
+- `-prod` - Use production Cloud Tasks queue (requires GCP credentials)
 - `-host URL` - Custom host URL for task delivery
 - `-date YYYY-MM-DD` - Specific date (default: today)
 - `-teams ID1,ID2` - Team IDs or city codes (set via TEAM_CODE env var)
@@ -129,6 +173,8 @@ docker run -d \
 - `-project PROJECT_ID` - GCP Project ID (default: localproject)
 - `-location LOCATION` - GCP Location (default: us-south1)
 - `-queue QUEUE_NAME` - Task Queue name (default: gameschedule)
+
+**Important**: Either `-local` or `-host` must be specified. The default installation uses `-local` to send tasks to a local task queue.
 
 ### Team Codes
 

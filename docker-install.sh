@@ -41,7 +41,7 @@ OPTIONS:
                            Default: no team (Dallas Stars)
 
     -f, --flags FLAGS      Additional flags to pass to the application
-                           Default: -today
+                           Default: -local -today
                            Example: -f "-today -prod"
 
     -z, --timezone TZ      Timezone for the container
@@ -59,13 +59,13 @@ OPTIONS:
     -h, --help            Show this help message
 
 EXAMPLES:
-    # Install with default settings (Dallas Stars, -today flag)
+    # Install with default settings (Dallas Stars, -local -today flags)
     $0
 
-    # Install for Chicago Blackhawks
+    # Install for Chicago Blackhawks with local task queue
     $0 --team CHI
 
-    # Install for multiple teams
+    # Install for multiple teams with local task queue
     $0 --team CHI,DAL,BOS
 
     # Install with production flag and GCP credentials
@@ -118,7 +118,7 @@ check_dependencies() {
 
 # Parse command line arguments
 TEAM_CODE=""
-ADDITIONAL_FLAGS="-today"
+ADDITIONAL_FLAGS="-local -today"
 TIMEZONE="America/Chicago"
 GCP_CREDENTIALS=""
 BUILD_ONLY=false
