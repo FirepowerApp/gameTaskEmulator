@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  gametask-emulator-scheduled:
+    build:
+      context: .
+      dockerfile: Dockerfile.scheduled
+    container_name: gametask-emulator-scheduled
+    restart: unless-stopped
+
+    # Environment variables for configuration
+    environment:
+      # Timezone - set this to your local timezone
+      - TZ=America/Chicago
+
+      # Team code(s) - comma-separated list (e.g., CHI,DAL,BOS)
+      # Leave empty or comment out to use default team
+      - TEAM_CODE=${TEAM_CODE:-}
+
+      # Additional flags to pass to gameTaskEmulator
+      # Common flags: -today, -prod, -all, -test
+      - ADDITIONAL_FLAGS=${ADDITIONAL_FLAGS:--today}
+
+      # Google Cloud credentials (if using production mode)
+      # - GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp-key.json
+
+    # Mount Google Cloud credentials if needed
+    # Uncomment the volumes section below if you're using -prod flag
+    # volumes:
+    #   - ${GOOGLE_APPLICATION_CREDENTIALS}:/secrets/gcp-key.json:ro
+
+    # Add host.docker.internal for local development (allows -local flag to work)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Health check (optional - checks if cron is running)
+    healthcheck:
+      test: ["CMD", "pgrep", "crond"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+# Example configurations:
+#
+# For Chicago Blackhawks with production mode:
+#   environment:
+#     - TZ=America/Chicago
+#     - TEAM_CODE=CHI
+#     - ADDITIONAL_FLAGS=-today -prod
+#     - GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp-key.json
+#   volumes:
+#     - ./path/to/your/gcp-key.json:/secrets/gcp-key.json:ro
+#
+# For multiple teams:
+#   environment:
+#     - TEAM_CODE=CHI,DAL,BOS
+#     - ADDITIONAL_FLAGS=-today
+#
+# For all teams:
+#   environment:
+#     - ADDITIONAL_FLAGS=-today -all
+#
+# For local development:
+#   environment:
+#     - ADDITIONAL_FLAGS=-today -local
