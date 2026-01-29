@@ -2,7 +2,7 @@
 bin/
 
 # Compiled binaries
-gameTaskEmulator
+/gameTaskEmulator
 
 # Environment files
 .env*
