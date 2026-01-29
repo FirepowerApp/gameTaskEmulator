@@ -60,44 +60,38 @@ func (d *DiscordSender) Send(message string) error {
 	return d.sendPayload(payload)
 }
 
-// SendGameNotification sends a formatted game notification to Discord.
-func (d *DiscordSender) SendGameNotification(game GameInfo, eventType string) error {
-	// Color codes for Discord embeds (decimal)
-	// Green for game scheduled, Blue for game started, etc.
-	colorMap := map[string]int{
-		"scheduled": 3066993,  // Green
-		"started":   3447003,  // Blue
-		"ended":     15158332, // Red
-		"reminder":  16776960, // Yellow
-	}
+// SendScheduleSummary sends a summary of all scheduled games to Discord.
+// If no games were scheduled, sends a message indicating that.
+func (d *DiscordSender) SendScheduleSummary(games []GameInfo) error {
+	var embed discordEmbed
 
-	color, ok := colorMap[eventType]
-	if !ok {
-		color = 9807270 // Gray for unknown event types
-	}
+	if len(games) == 0 {
+		embed = discordEmbed{
+			Title:       "NHL Game Schedule",
+			Description: "No games were identified to schedule.",
+			Color:       9807270, // Gray
+			Timestamp:   time.Now().UTC().Format(time.RFC3339),
+		}
+	} else {
+		// Build description with all games
+		var description string
+		for _, game := range games {
+			description += fmt.Sprintf("**%s @ %s**\n%s at %s\n\n",
+				game.AwayTeam, game.HomeTeam, game.GameDate, game.StartTime)
+		}
 
-	embed := discordEmbed{
-		Title:       fmt.Sprintf("NHL Game %s", capitalizeFirst(eventType)),
-		Description: fmt.Sprintf("%s vs %s", game.AwayTeam, game.HomeTeam),
-		Color:       color,
-		Fields: []discordEmbedField{
-			{
-				Name:   "Game ID",
-				Value:  game.ID,
-				Inline: true,
-			},
-			{
-				Name:   "Date",
-				Value:  game.GameDate,
-				Inline: true,
-			},
-			{
-				Name:   "Start Time",
-				Value:  game.StartTime,
-				Inline: true,
-			},
-		},
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		title := fmt.Sprintf("NHL Game Schedule (%d game", len(games))
+		if len(games) != 1 {
+			title += "s"
+		}
+		title += " scheduled)"
+
+		embed = discordEmbed{
+			Title:       title,
+			Description: description,
+			Color:       3066993, // Green
+			Timestamp:   time.Now().UTC().Format(time.RFC3339),
+		}
 	}
 
 	payload := discordMessage{
@@ -138,18 +132,4 @@ func (d *DiscordSender) sendPayload(payload discordMessage) error {
 	}
 
 	return nil
-}
-
-// capitalizeFirst capitalizes the first letter of a string.
-func capitalizeFirst(s string) string {
-	if s == "" {
-		return s
-	}
-	if len(s) == 1 {
-		return string(s[0]-32) // Convert to uppercase for ASCII letters
-	}
-	if s[0] >= 'a' && s[0] <= 'z' {
-		return string(s[0]-32) + s[1:]
-	}
-	return s
 }

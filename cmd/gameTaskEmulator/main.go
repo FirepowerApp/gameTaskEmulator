@@ -462,7 +462,7 @@ func connectToTasksService(ctx context.Context, config *Config) (taskspb.CloudTa
 }
 
 // processGames processes a list of games and creates cloud tasks for each
-func processGames(ctx context.Context, client taskspb.CloudTasksClient, config *Config, games []Game, notifier notification.Sender) error {
+func processGames(ctx context.Context, client taskspb.CloudTasksClient, config *Config, games []Game) error {
 	if len(games) == 0 {
 		log.Println("No games found to process")
 		return nil
@@ -481,20 +481,6 @@ func processGames(ctx context.Context, client taskspb.CloudTasksClient, config *
 		if err := createCloudTask(ctx, client, config, game); err != nil {
 			log.Printf("Failed to create task for game %d: %v", game.ID, err)
 			continue
-		}
-
-		// Send notification if enabled
-		if notifier.IsEnabled() {
-			gameInfo := notification.GameInfo{
-				ID:        strconv.Itoa(game.ID),
-				GameDate:  game.GameDate,
-				StartTime: game.StartTime,
-				HomeTeam:  game.HomeTeam.Abbrev,
-				AwayTeam:  game.AwayTeam.Abbrev,
-			}
-			if err := notifier.SendGameNotification(gameInfo, "scheduled"); err != nil {
-				log.Printf("Warning: Failed to send notification for game %d: %v", game.ID, err)
-			}
 		}
 	}
 
@@ -554,9 +540,26 @@ func main() {
 	}
 
 	// Process games and create tasks
-	if err := processGames(ctx, client, config, games, notifier); err != nil {
+	if err := processGames(ctx, client, config, games); err != nil {
 		log.Fatalf("Failed to process games: %v", err)
 	}
 
 	log.Printf("Successfully processed %d games", len(games))
+
+	// Send summary notification after all games have been processed
+	if notifier.IsEnabled() {
+		var gameInfos []notification.GameInfo
+		for _, game := range games {
+			gameInfos = append(gameInfos, notification.GameInfo{
+				ID:        strconv.Itoa(game.ID),
+				GameDate:  game.GameDate,
+				StartTime: game.StartTime,
+				HomeTeam:  game.HomeTeam.Abbrev,
+				AwayTeam:  game.AwayTeam.Abbrev,
+			})
+		}
+		if err := notifier.SendScheduleSummary(gameInfos); err != nil {
+			log.Printf("Warning: Failed to send schedule summary notification: %v", err)
+		}
+	}
 }

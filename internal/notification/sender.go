@@ -18,9 +18,10 @@ type Sender interface {
 	// Returns an error if the notification could not be sent.
 	Send(message string) error
 
-	// SendGameNotification sends a notification about a game event.
+	// SendScheduleSummary sends a summary notification of all scheduled games.
+	// If games is empty, sends a message indicating no games were scheduled.
 	// Returns an error if the notification could not be sent.
-	SendGameNotification(game GameInfo, eventType string) error
+	SendScheduleSummary(games []GameInfo) error
 
 	// IsEnabled returns whether the notification sender is configured and enabled.
 	IsEnabled() bool
@@ -35,8 +36,8 @@ func (n *NoOpSender) Send(message string) error {
 	return nil
 }
 
-// SendGameNotification does nothing and returns nil.
-func (n *NoOpSender) SendGameNotification(game GameInfo, eventType string) error {
+// SendScheduleSummary does nothing and returns nil.
+func (n *NoOpSender) SendScheduleSummary(games []GameInfo) error {
 	return nil
 }
 
