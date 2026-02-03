@@ -447,3 +447,153 @@ func TestDiscordSender_SendScheduleSummary_TwoGames(t *testing.T) {
 		t.Errorf("title = %q, want %q", received.Embeds[0].Title, expected)
 	}
 }
+
+// --- Exact payload formatting tests ---
+// These verify the precise description string to catch formatting regressions
+// (ordering, newlines, separators, markdown).
+
+func TestDiscordSender_SendScheduleSummary_ExactDescription_OneGame(t *testing.T) {
+	var received discordMessage
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	games := []GameInfo{
+		{ID: "2024020415", GameDate: "2025-01-15", StartTime: "2025-01-16T00:00:00Z", HomeTeam: "BOS", AwayTeam: "DAL"},
+	}
+
+	s := NewDiscordSender(server.URL)
+	if err := s.SendScheduleSummary(games); err != nil {
+		t.Fatalf("SendScheduleSummary() returned error: %v", err)
+	}
+
+	wantDescription := "**DAL @ BOS**\n2025-01-15 at 2025-01-16T00:00:00Z\n\n"
+	if received.Embeds[0].Description != wantDescription {
+		t.Errorf("description mismatch:\n got: %q\nwant: %q", received.Embeds[0].Description, wantDescription)
+	}
+}
+
+func TestDiscordSender_SendScheduleSummary_ExactDescription_MultipleGames(t *testing.T) {
+	var received discordMessage
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	games := []GameInfo{
+		{ID: "2024020415", GameDate: "2025-01-15", StartTime: "2025-01-16T00:00:00Z", HomeTeam: "BOS", AwayTeam: "DAL"},
+		{ID: "2024020416", GameDate: "2025-01-15", StartTime: "2025-01-16T01:00:00Z", HomeTeam: "NYR", AwayTeam: "CHI"},
+		{ID: "2024020417", GameDate: "2025-01-15", StartTime: "2025-01-16T03:30:00Z", HomeTeam: "LAK", AwayTeam: "SEA"},
+	}
+
+	s := NewDiscordSender(server.URL)
+	if err := s.SendScheduleSummary(games); err != nil {
+		t.Fatalf("SendScheduleSummary() returned error: %v", err)
+	}
+
+	wantDescription := "" +
+		"**DAL @ BOS**\n2025-01-15 at 2025-01-16T00:00:00Z\n\n" +
+		"**CHI @ NYR**\n2025-01-15 at 2025-01-16T01:00:00Z\n\n" +
+		"**SEA @ LAK**\n2025-01-15 at 2025-01-16T03:30:00Z\n\n"
+	if received.Embeds[0].Description != wantDescription {
+		t.Errorf("description mismatch:\n got: %q\nwant: %q", received.Embeds[0].Description, wantDescription)
+	}
+}
+
+func TestDiscordSender_SendScheduleSummary_ExactPayload_NoGames(t *testing.T) {
+	var received discordMessage
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	s := NewDiscordSender(server.URL)
+	if err := s.SendScheduleSummary(nil); err != nil {
+		t.Fatalf("SendScheduleSummary(nil) returned error: %v", err)
+	}
+
+	if received.Content != "" {
+		t.Errorf("content = %q, want empty", received.Content)
+	}
+	if len(received.Embeds) != 1 {
+		t.Fatalf("embed count = %d, want 1", len(received.Embeds))
+	}
+
+	embed := received.Embeds[0]
+	if embed.Title != "NHL Game Schedule" {
+		t.Errorf("title = %q, want %q", embed.Title, "NHL Game Schedule")
+	}
+	if embed.Description != "No games were identified to schedule." {
+		t.Errorf("description = %q, want %q", embed.Description, "No games were identified to schedule.")
+	}
+	if embed.Color != 9807270 {
+		t.Errorf("color = %d, want 9807270 (gray)", embed.Color)
+	}
+	if len(embed.Fields) != 0 {
+		t.Errorf("fields count = %d, want 0", len(embed.Fields))
+	}
+}
+
+func TestDiscordSender_Send_ExactPayload(t *testing.T) {
+	var received discordMessage
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	s := NewDiscordSender(server.URL)
+	if err := s.Send("Game Task Emulator run complete."); err != nil {
+		t.Fatalf("Send() returned error: %v", err)
+	}
+
+	if received.Content != "Game Task Emulator run complete." {
+		t.Errorf("content = %q, want %q", received.Content, "Game Task Emulator run complete.")
+	}
+	if len(received.Embeds) != 0 {
+		t.Errorf("embeds count = %d, want 0", len(received.Embeds))
+	}
+}
+
+// --- Game ordering preservation ---
+
+func TestDiscordSender_SendScheduleSummary_PreservesGameOrder(t *testing.T) {
+	var received discordMessage
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	// Deliberately pass games in non-chronological order
+	games := []GameInfo{
+		{ID: "3", GameDate: "2025-01-15", StartTime: "2025-01-16T03:00:00Z", HomeTeam: "LAK", AwayTeam: "SEA"},
+		{ID: "1", GameDate: "2025-01-15", StartTime: "2025-01-16T00:00:00Z", HomeTeam: "BOS", AwayTeam: "DAL"},
+		{ID: "2", GameDate: "2025-01-15", StartTime: "2025-01-16T01:00:00Z", HomeTeam: "NYR", AwayTeam: "CHI"},
+	}
+
+	s := NewDiscordSender(server.URL)
+	s.SendScheduleSummary(games)
+
+	desc := received.Embeds[0].Description
+	// The first game in the input should appear first in the output
+	lakIdx := strings.Index(desc, "SEA @ LAK")
+	bosIdx := strings.Index(desc, "DAL @ BOS")
+	nyrIdx := strings.Index(desc, "CHI @ NYR")
+
+	if lakIdx == -1 || bosIdx == -1 || nyrIdx == -1 {
+		t.Fatalf("missing matchups in description: %q", desc)
+	}
+	if lakIdx > bosIdx || bosIdx > nyrIdx {
+		t.Errorf("games not in input order: LAK@%d BOS@%d NYR@%d\ndescription: %q", lakIdx, bosIdx, nyrIdx, desc)
+	}
+}
