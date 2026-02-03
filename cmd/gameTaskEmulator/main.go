@@ -10,10 +10,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/CrashTheCrease/backend/gameTaskEmulator/internal/notification"
 	taskspb "google.golang.org/genproto/googleapis/cloud/tasks/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -30,18 +32,19 @@ const (
 
 // Config holds the configuration for the application
 type Config struct {
-	Date       string // Date to query games for (YYYY-MM-DD format)
-	Teams      []int  // Team IDs to filter games for
-	TestMode   bool   // Whether to run in test mode
-	AllTeams   bool   // Whether to include all teams
-	Today      bool   // Whether to filter for today's upcoming games only
-	Production bool   // Whether to use production task queue
-	Shootout   bool   // Whether to use shootout game ID (2024030412)
-	ProjectID  string // GCP Project ID
-	Location   string // GCP Location
-	QueueName  string // Task Queue name
-	LocalMode  bool   // Whether to send requests to local host
-	HostURL    string // Custom host URL for sending requests
+	Date              string // Date to query games for (YYYY-MM-DD format)
+	Teams             []int  // Team IDs to filter games for
+	TestMode          bool   // Whether to run in test mode
+	AllTeams          bool   // Whether to include all teams
+	Today             bool   // Whether to filter for today's upcoming games only
+	Production        bool   // Whether to use production task queue
+	Shootout          bool   // Whether to use shootout game ID (2024030412)
+	ProjectID         string // GCP Project ID
+	Location          string // GCP Location
+	QueueName         string // Task Queue name
+	LocalMode         bool   // Whether to send requests to local host
+	HostURL           string // Custom host URL for sending requests
+	DiscordWebhookURL string // Discord webhook URL for notifications
 }
 
 // Game represents a single NHL game with relevant information
@@ -169,8 +172,14 @@ func parseFlags() *Config {
 	flag.StringVar(&config.QueueName, "queue", "gameschedule", "Task Queue name")
 	flag.BoolVar(&config.LocalMode, "local", false, "Send requests to local host (http://host.docker.internal:8080)")
 	flag.StringVar(&config.HostURL, "host", "", "Custom host URL to send requests to")
+	flag.StringVar(&config.DiscordWebhookURL, "discord-webhook", "", "Discord webhook URL for notifications (can also be set via DISCORD_WEBHOOK_URL env var)")
 
 	flag.Parse()
+
+	// Check for Discord webhook URL from environment variable if not set via flag
+	if config.DiscordWebhookURL == "" {
+		config.DiscordWebhookURL = os.Getenv("DISCORD_WEBHOOK_URL")
+	}
 
 	// Validate that either -local or -host is provided
 	if !config.LocalMode && config.HostURL == "" {
@@ -489,6 +498,15 @@ func main() {
 
 	ctx := context.Background()
 
+	// Initialize notification sender (dependency injection)
+	// The main function only knows about the Sender interface, not the concrete implementation
+	var notifier notification.Sender = notification.NewDiscordSender(config.DiscordWebhookURL)
+	if notifier.IsEnabled() {
+		log.Printf("Discord notifications enabled")
+	} else {
+		log.Printf("Discord notifications disabled (no webhook URL configured)")
+	}
+
 	// Connect to Cloud Tasks service (emulator or production)
 	client, conn, err := connectToTasksService(ctx, config)
 	if err != nil {
@@ -527,4 +545,21 @@ func main() {
 	}
 
 	log.Printf("Successfully processed %d games", len(games))
+
+	// Send summary notification after all games have been processed
+	if notifier.IsEnabled() {
+		var gameInfos []notification.GameInfo
+		for _, game := range games {
+			gameInfos = append(gameInfos, notification.GameInfo{
+				ID:        strconv.Itoa(game.ID),
+				GameDate:  game.GameDate,
+				StartTime: game.StartTime,
+				HomeTeam:  game.HomeTeam.Abbrev,
+				AwayTeam:  game.AwayTeam.Abbrev,
+			})
+		}
+		if err := notifier.SendScheduleSummary(gameInfos); err != nil {
+			log.Printf("Warning: Failed to send schedule summary notification: %v", err)
+		}
+	}
 }

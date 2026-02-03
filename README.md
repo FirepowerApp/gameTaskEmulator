@@ -11,6 +11,7 @@ This program fetches NHL game schedules and creates Google Cloud Tasks for game 
 - **Test Mode**: Includes a test mode with predefined game data for development
 - **Production Support**: Configurable for both local development and production environments
 - **Cloud Task Integration**: Creates Google Cloud Tasks that integrate with the existing game monitoring system
+- **Discord Notifications**: Optional Discord webhook notifications with a summary of all scheduled games
 
 ## Usage
 
@@ -44,6 +45,7 @@ Or send to a custom host:
 - `-project PROJECT_ID`: GCP Project ID (default: "localproject")
 - `-location LOCATION`: GCP Location (default: "us-south1")
 - `-queue QUEUE_NAME`: Task Queue name (default: "gameschedule")
+- `-discord-webhook URL`: Discord webhook URL for notifications (can also be set via `DISCORD_WEBHOOK_URL` environment variable)
 
 ### Examples
 
@@ -218,11 +220,17 @@ For local development, ensure the local Cloud Tasks emulator is running and use 
 
 ### Environment Variables
 
-While the program primarily uses command-line flags, you may need to set up Google Cloud credentials:
+While the program primarily uses command-line flags, the following environment variables are supported:
+
+- `GOOGLE_APPLICATION_CREDENTIALS`: Path to GCP service account key (required for production mode)
+- `DISCORD_WEBHOOK_URL`: Discord webhook URL for notifications (optional, can also be set via `-discord-webhook` flag)
 
 ```bash
 export GOOGLE_APPLICATION_CREDENTIALS="path/to/service-account-key.json"
+export DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
 ```
+
+When a Discord webhook URL is configured, the application sends a single summary notification after all games have been processed. The notification includes the date, time, and opponents for each scheduled game, or a message indicating that no games were identified.
 
 ### Production Configuration
 
@@ -252,6 +260,7 @@ This program integrates with:
 - **NHL API**: For fetching game schedules
 - **Google Cloud Tasks**: For task scheduling
 - **CrashTheCrease Backend**: Via the `watchGameUpdates` handler
+- **Discord Webhooks**: For optional schedule summary notifications
 
 ## Troubleshooting
 
@@ -412,6 +421,9 @@ ADDITIONAL_FLAGS=-local -today
 
 # Google Cloud credentials (if using custom host)
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+
+# Discord webhook URL for notifications (optional)
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN
 ```
 
 ### GitHub Actions
