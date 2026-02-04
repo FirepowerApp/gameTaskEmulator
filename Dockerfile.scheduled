@@ -53,5 +53,8 @@ RUN chown -R appuser:appuser /app
 # Note: Running as root for cron daemon, but tasks execute with proper permissions
 # This is standard practice for cron-based containers
 
+# Set environment variable for Cloud Tasks emulator to use host machine
+ENV CLOUD_TASKS_EMULATOR=host.docker.internal:8123
+
 # Set the entrypoint to run cron in foreground
 ENTRYPOINT ["/app/entrypoint.sh"]
