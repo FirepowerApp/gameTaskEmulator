@@ -9,11 +9,15 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: blnelson/firepowergametaskemulator
+  DOCKERHUB_IMAGE: blnelson/firepowergametaskemulator
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     # Only run on push to main (i.e., when PRs are merged)
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
@@ -30,11 +34,20 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: |
+            ${{ env.DOCKERHUB_IMAGE }}
+            ${{ env.GHCR_IMAGE }}
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
