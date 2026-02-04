@@ -51,10 +51,14 @@ touch /var/log/cron.log
 chmod 666 /var/log/cron.log
 
 log_info "Container is ready and cron daemon is starting..."
-log_info "Logs will be written to /var/log/cron.log"
+log_info "Logs will be written to /var/log/cron.log and stdout"
 log_info ""
 log_info "To view logs in real-time: docker logs -f <container-name>"
 log_info ""
+
+# Tail the cron log file in the background to output to stdout
+# The -F flag follows the file and retries if it's temporarily unavailable
+tail -F /var/log/cron.log &
 
 # Start crond in foreground mode
 # -f: foreground mode
