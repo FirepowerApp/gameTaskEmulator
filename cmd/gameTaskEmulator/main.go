@@ -45,6 +45,7 @@ type Config struct {
 	LocalMode         bool   // Whether to send requests to local host
 	HostURL           string // Custom host URL for sending requests
 	DiscordWebhookURL string // Discord webhook URL for notifications
+	EmulatorHost      string // Cloud Tasks emulator host (default: localhost:8123)
 }
 
 // Game represents a single NHL game with relevant information
@@ -160,6 +161,7 @@ func parseFlags() *Config {
 	config := &Config{}
 
 	var teamsStr string
+	var emulatorHost string
 	flag.StringVar(&config.Date, "date", "", "Specific date to query (YYYY-MM-DD format). Defaults to today.")
 	flag.StringVar(&teamsStr, "teams", "", "Comma-separated list of team IDs or city codes (e.g., '25,CHI,DAL'). Defaults to Dallas Stars (25).")
 	flag.BoolVar(&config.TestMode, "test", false, "Run in test mode with predefined game ID")
@@ -173,12 +175,22 @@ func parseFlags() *Config {
 	flag.BoolVar(&config.LocalMode, "local", false, "Send requests to local host (http://host.docker.internal:8080)")
 	flag.StringVar(&config.HostURL, "host", "", "Custom host URL to send requests to")
 	flag.StringVar(&config.DiscordWebhookURL, "discord-webhook", "", "Discord webhook URL for notifications (can also be set via DISCORD_WEBHOOK_URL env var)")
+	flag.StringVar(&emulatorHost, "emulator", "", "Cloud Tasks emulator host (default: localhost:8123 or CLOUD_TASKS_EMULATOR env var)")
 
 	flag.Parse()
 
 	// Check for Discord webhook URL from environment variable if not set via flag
 	if config.DiscordWebhookURL == "" {
 		config.DiscordWebhookURL = os.Getenv("DISCORD_WEBHOOK_URL")
+	}
+
+	// Set emulator host from flag, environment variable, or default
+	if emulatorHost != "" {
+		config.EmulatorHost = emulatorHost
+	} else if envHost := os.Getenv("CLOUD_TASKS_EMULATOR"); envHost != "" {
+		config.EmulatorHost = envHost
+	} else {
+		config.EmulatorHost = "localhost:8123"
 	}
 
 	// Validate that either -local or -host is provided
@@ -444,7 +456,7 @@ func createCloudTask(ctx context.Context, client taskspb.CloudTasksClient, confi
 func connectToTasksService(ctx context.Context, config *Config) (taskspb.CloudTasksClient, *grpc.ClientConn, error) {
 	if !config.Production {
 		// Connect to local emulator using direct GRPC (like localCloudTasksTest)
-		endpoint := "localhost:8123"
+		endpoint := config.EmulatorHost
 		log.Printf("Connecting to local Cloud Tasks emulator at %s", endpoint)
 
 		conn, err := grpc.DialContext(ctx, endpoint, grpc.WithInsecure(), grpc.WithBlock())

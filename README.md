@@ -395,9 +395,40 @@ By default, if the script encounters a **network error** when pulling from Docke
 - **Image not found errors**: Always fails immediately (check image name)
 - **Force pull mode** (`--force-pull`): Always fails on any pull error (no fallback)
 
-### Systemd Installation (Linux)
+### Docker Scheduled Installation (Recommended for Local Development)
 
-For automated daily execution on Linux systems, use the installation script:
+For automated **weekly execution every Monday at 5:00 AM** using Docker, see the [Docker Installation Guide](DOCKER_INSTALL.md).
+
+This method works on any platform (Linux, macOS, Windows) and provides:
+- **Local development** - Sends to local task queue at `http://host.docker.internal:8080` by default
+- Containerized, isolated execution
+- Weekly schedule (Monday 5:00 AM)
+- Easy configuration and management
+- No systemd dependency
+
+**Quick Start:**
+
+```bash
+# Basic installation (sends to local task queue)
+./docker-install.sh
+
+# Install for specific team (sends to local task queue)
+./docker-install.sh --team CHI
+
+# Install for multiple teams (sends to local task queue)
+./docker-install.sh --team CHI,DAL,BOS
+
+# With production mode (not local)
+./docker-install.sh --team DAL --flags "-today -prod" --credentials ./gcp-key.json
+```
+
+**Default behavior**: Uses `-local -today` flags to send tasks to your local task queue at `http://host.docker.internal:8080`. This matches the standard workflow of running `./bin/gameTaskEmulator -local -today -teams CHI`.
+
+For complete documentation, see [DOCKER_INSTALL.md](DOCKER_INSTALL.md).
+
+### Systemd Installation (Linux - Daily Execution)
+
+For automated **daily execution at 6:00 AM** on Linux systems, use the systemd installation script:
 
 #### Quick Install
 

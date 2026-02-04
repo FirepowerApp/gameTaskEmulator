@@ -1,0 +1,60 @@
+# Build stage
+FROM golang:1.21-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -o /build/bin/gameTaskEmulator ./cmd/gameTaskEmulator
+
+# Runtime stage with cron
+FROM alpine:latest
+
+# Install ca-certificates for HTTPS requests, tzdata for timezone support, and bash
+RUN apk --no-cache add ca-certificates tzdata bash
+
+# Create non-root user (for reference, though cron will run as root)
+RUN addgroup -g 1000 appuser && \
+    adduser -D -u 1000 -G appuser appuser
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /build/bin/gameTaskEmulator /app/gameTaskEmulator
+
+# Copy Docker support files
+COPY docker/entrypoint-scheduled.sh /app/entrypoint.sh
+COPY docker/crontab /app/docker/crontab
+COPY docker/run-task.sh /app/run-task.sh
+
+# Make scripts executable
+RUN chmod +x /app/entrypoint.sh /app/run-task.sh
+
+# Create directory for cron logs
+RUN mkdir -p /var/log && \
+    touch /var/log/cron.log && \
+    chmod 666 /var/log/cron.log
+
+# Ensure app ownership is correct
+RUN chown -R appuser:appuser /app
+
+# Note: Running as root for cron daemon, but tasks execute with proper permissions
+# This is standard practice for cron-based containers
+
+# Set environment variable for Cloud Tasks emulator to use host machine
+ENV CLOUD_TASKS_EMULATOR=host.docker.internal:8123
+
+# Set the entrypoint to run cron in foreground
+ENTRYPOINT ["/app/entrypoint.sh"]
