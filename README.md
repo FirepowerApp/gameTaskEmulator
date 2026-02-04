@@ -154,41 +154,15 @@ These tasks are consumed by the existing `watchGameUpdates` service in the Crash
 
 ### Building
 
-This project uses a custom build system (based on the CrashTheCrease backend build system) that compiles binaries and saves them to the `bin/` directory.
-
-#### Build System Usage
-
-The build system supports three main commands:
-
-**Build a specific target**:
 ```bash
-go run build.go -target gameTaskEmulator
+make build
 ```
 
-**Build all available targets**:
-```bash
-go run build.go -all
-```
+This compiles the binary with `CGO_ENABLED=0` for static linking and saves it to `./bin/gameTaskEmulator`.
 
-**List available build targets**:
-```bash
-go run build.go -list
-```
-
-#### Build Output
-
-All binaries are compiled with `CGO_ENABLED=0` for static linking and saved to the `./bin/` directory. The `bin/` directory is excluded from version control via `.gitignore` to prevent binaries from being committed to the repository.
-
-After building, you can run the binary directly:
 ```bash
 ./bin/gameTaskEmulator [options]
 ```
-
-#### Available Build Targets
-
-- **gameTaskEmulator**: NHL game tracker scheduler that creates Cloud Tasks for game monitoring
-  - Source: `./cmd/gameTaskEmulator`
-  - Binary: `./bin/gameTaskEmulator`
 
 ### Dependencies
 
