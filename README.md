@@ -211,9 +211,63 @@ You can also test with a custom host:
 
 ### Local Development
 
-For local development, ensure the local Cloud Tasks emulator is running and use the `-local` flag to send tasks to `http://host.docker.internal:8080`:
+A `docker-compose.yml` is included to run a local Cloud Tasks emulator so you can test the full flow — real NHL API data, local task queue, and live Discord notifications — without touching any production queues.
+
+#### Setup
+
+1. Copy the environment template and add your Discord webhook URL:
+   ```bash
+   cp .env.example .env
+   ```
+   Edit `.env` and set `DISCORD_WEBHOOK_URL` to your webhook URL (get one from Discord: Server Settings → Integrations → Webhooks).
+
+2. Start the Cloud Tasks emulator:
+   ```bash
+   docker compose up
+   ```
+   This starts the emulator on port 8123 and pre-creates the `gameschedule` queue with the default project/location settings.
+
+3. In a separate terminal, build and run the binary:
+   ```bash
+   go run build.go -target gameTaskEmulator
+   ./bin/gameTaskEmulator -local -today -discord-webhook "YOUR_WEBHOOK_URL"
+   ```
+
+The binary fetches live game data from the NHL API, creates tasks in the local emulator, and sends a schedule summary to your Discord channel. Task dispatch will fail (nothing is running at the target URL), which is the expected behavior — the point is to test scheduling and notifications without affecting production.
+
+#### Running via Docker Compose
+
+Instead of building locally, you can run the app through compose as well:
+
 ```bash
-./gameTaskEmulator -local -today -teams DAL
+docker compose --profile app run --rm app -local -today
+```
+
+This builds the app from the Dockerfile and runs it with `network_mode: host` so it can reach the emulator at `localhost:8123`. Set `DISCORD_WEBHOOK_URL` in your `.env` file and it will be passed through automatically.
+
+#### Examples
+
+```bash
+# Dallas Stars, today's upcoming games, with Discord notification
+./bin/gameTaskEmulator -local -today -discord-webhook "$DISCORD_WEBHOOK_URL"
+
+# Chicago Blackhawks, specific date
+./bin/gameTaskEmulator -local -date 2025-03-15 -teams CHI -discord-webhook "$DISCORD_WEBHOOK_URL"
+
+# All teams playing today
+./bin/gameTaskEmulator -local -today -all -discord-webhook "$DISCORD_WEBHOOK_URL"
+
+# Multiple teams
+./bin/gameTaskEmulator -local -today -teams CHI,DAL,BOS -discord-webhook "$DISCORD_WEBHOOK_URL"
+
+# Via compose (reads DISCORD_WEBHOOK_URL from .env)
+docker compose --profile app run --rm app -local -today -teams CHI
+```
+
+#### Stopping
+
+```bash
+docker compose down
 ```
 
 ## Configuration
