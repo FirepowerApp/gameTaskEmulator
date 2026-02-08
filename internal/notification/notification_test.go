@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // --- NoOpSender tests ---
@@ -35,7 +36,7 @@ func TestNoOpSender_SendScheduleSummary(t *testing.T) {
 // --- NewDiscordSender constructor tests ---
 
 func TestNewDiscordSender_EmptyURL(t *testing.T) {
-	s := NewDiscordSender("")
+	s := NewDiscordSender("", "")
 	if s.IsEnabled() {
 		t.Error("NewDiscordSender(\"\").IsEnabled() = true, want false (should return NoOpSender)")
 	}
@@ -46,7 +47,7 @@ func TestNewDiscordSender_EmptyURL(t *testing.T) {
 }
 
 func TestNewDiscordSender_WithURL(t *testing.T) {
-	s := NewDiscordSender("https://discord.com/api/webhooks/test")
+	s := NewDiscordSender("https://discord.com/api/webhooks/test", "")
 	if !s.IsEnabled() {
 		t.Error("NewDiscordSender(url).IsEnabled() = false, want true")
 	}
@@ -74,7 +75,7 @@ func TestDiscordSender_Send(t *testing.T) {
 	}))
 	defer server.Close()
 
-	s := NewDiscordSender(server.URL)
+	s := NewDiscordSender(server.URL, "")
 	if err := s.Send("hello world"); err != nil {
 		t.Fatalf("Send() returned error: %v", err)
 	}
@@ -100,7 +101,7 @@ func TestDiscordSender_SendScheduleSummary_NoGames(t *testing.T) {
 	}))
 	defer server.Close()
 
-	s := NewDiscordSender(server.URL)
+	s := NewDiscordSender(server.URL, "")
 	if err := s.SendScheduleSummary(nil); err != nil {
 		t.Fatalf("SendScheduleSummary(nil) returned error: %v", err)
 	}
@@ -133,7 +134,7 @@ func TestDiscordSender_SendScheduleSummary_EmptySlice(t *testing.T) {
 	}))
 	defer server.Close()
 
-	s := NewDiscordSender(server.URL)
+	s := NewDiscordSender(server.URL, "")
 	if err := s.SendScheduleSummary([]GameInfo{}); err != nil {
 		t.Fatalf("SendScheduleSummary([]) returned error: %v", err)
 	}
@@ -165,7 +166,7 @@ func TestDiscordSender_SendScheduleSummary_OneGame(t *testing.T) {
 		},
 	}
 
-	s := NewDiscordSender(server.URL)
+	s := NewDiscordSender(server.URL, "")
 	if err := s.SendScheduleSummary(games); err != nil {
 		t.Fatalf("SendScheduleSummary() returned error: %v", err)
 	}
@@ -234,7 +235,7 @@ func TestDiscordSender_SendScheduleSummary_MultipleGames(t *testing.T) {
 		},
 	}
 
-	s := NewDiscordSender(server.URL)
+	s := NewDiscordSender(server.URL, "")
 	if err := s.SendScheduleSummary(games); err != nil {
 		t.Fatalf("SendScheduleSummary() returned error: %v", err)
 	}
@@ -270,7 +271,7 @@ func TestDiscordSender_Send_HTTP200(t *testing.T) {
 	}))
 	defer server.Close()
 
-	s := NewDiscordSender(server.URL)
+	s := NewDiscordSender(server.URL, "")
 	if err := s.Send("test"); err != nil {
 		t.Errorf("Send() with HTTP 200 returned error: %v", err)
 	}
@@ -282,7 +283,7 @@ func TestDiscordSender_Send_HTTP204(t *testing.T) {
 	}))
 	defer server.Close()
 
-	s := NewDiscordSender(server.URL)
+	s := NewDiscordSender(server.URL, "")
 	if err := s.Send("test"); err != nil {
 		t.Errorf("Send() with HTTP 204 returned error: %v", err)
 	}
@@ -294,7 +295,7 @@ func TestDiscordSender_Send_HTTP500(t *testing.T) {
 	}))
 	defer server.Close()
 
-	s := NewDiscordSender(server.URL)
+	s := NewDiscordSender(server.URL, "")
 	err := s.Send("test")
 	if err == nil {
 		t.Fatal("Send() with HTTP 500 returned nil error, want error")
@@ -310,7 +311,7 @@ func TestDiscordSender_Send_HTTP403(t *testing.T) {
 	}))
 	defer server.Close()
 
-	s := NewDiscordSender(server.URL)
+	s := NewDiscordSender(server.URL, "")
 	err := s.Send("test")
 	if err == nil {
 		t.Fatal("Send() with HTTP 403 returned nil error, want error")
@@ -326,7 +327,7 @@ func TestDiscordSender_Send_HTTP429(t *testing.T) {
 	}))
 	defer server.Close()
 
-	s := NewDiscordSender(server.URL)
+	s := NewDiscordSender(server.URL, "")
 	err := s.Send("test")
 	if err == nil {
 		t.Fatal("Send() with HTTP 429 returned nil error, want error")
@@ -338,7 +339,7 @@ func TestDiscordSender_Send_HTTP429(t *testing.T) {
 
 func TestDiscordSender_Send_ConnectionRefused(t *testing.T) {
 	// Use a URL with a port that's definitely not listening
-	s := NewDiscordSender("http://127.0.0.1:1")
+	s := NewDiscordSender("http://127.0.0.1:1", "")
 	err := s.Send("test")
 	if err == nil {
 		t.Fatal("Send() to unreachable server returned nil error, want error")
@@ -354,7 +355,7 @@ func TestDiscordSender_SendScheduleSummary_ServerError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	s := NewDiscordSender(server.URL)
+	s := NewDiscordSender(server.URL, "")
 	games := []GameInfo{{ID: "1", GameDate: "2024-01-01", StartTime: "2024-01-01T19:00:00Z", HomeTeam: "BOS", AwayTeam: "DAL"}}
 	err := s.SendScheduleSummary(games)
 	if err == nil {
@@ -379,7 +380,7 @@ func TestDiscordSender_SendScheduleSummary_PayloadIsValidJSON(t *testing.T) {
 		{ID: "1", GameDate: "2024-01-01", StartTime: "2024-01-01T19:00:00Z", HomeTeam: "BOS", AwayTeam: "DAL"},
 	}
 
-	s := NewDiscordSender(server.URL)
+	s := NewDiscordSender(server.URL, "")
 	s.SendScheduleSummary(games)
 
 	// Verify the raw body is valid JSON
@@ -397,7 +398,7 @@ func TestDiscordSender_SendScheduleSummary_PayloadIsValidJSON(t *testing.T) {
 	}
 }
 
-func TestDiscordSender_SendScheduleSummary_NoExtraContentField(t *testing.T) {
+func TestDiscordSender_SendScheduleSummary_NoContentWithoutUserID(t *testing.T) {
 	var received discordMessage
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -406,12 +407,37 @@ func TestDiscordSender_SendScheduleSummary_NoExtraContentField(t *testing.T) {
 	}))
 	defer server.Close()
 
-	s := NewDiscordSender(server.URL)
+	s := NewDiscordSender(server.URL, "")
 	s.SendScheduleSummary([]GameInfo{{ID: "1", HomeTeam: "BOS", AwayTeam: "DAL"}})
 
-	// SendScheduleSummary should use embeds, not content
+	// Without a user ID, content should be empty
 	if received.Content != "" {
 		t.Errorf("SendScheduleSummary set content field = %q, want empty", received.Content)
+	}
+}
+
+func TestDiscordSender_SendScheduleSummary_MentionWithUserID(t *testing.T) {
+	var received discordMessage
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	userID := "417487003588755480"
+	s := NewDiscordSender(server.URL, userID)
+	s.SendScheduleSummary([]GameInfo{{ID: "1", GameDate: "2024-01-01", StartTime: "2024-01-01T19:00:00Z", HomeTeam: "BOS", AwayTeam: "DAL"}})
+
+	// With a user ID, the mention should be at the end of the embed description
+	expectedMention := "<@417487003588755480>"
+	if !strings.HasSuffix(received.Embeds[0].Description, expectedMention) {
+		t.Errorf("SendScheduleSummary description should end with mention, got: %q", received.Embeds[0].Description)
+	}
+
+	// Content should be empty (mention is in embed, not content)
+	if received.Content != "" {
+		t.Errorf("SendScheduleSummary content = %q, want empty", received.Content)
 	}
 }
 
@@ -439,11 +465,315 @@ func TestDiscordSender_SendScheduleSummary_TwoGames(t *testing.T) {
 		{ID: "2", GameDate: "2024-01-01", StartTime: "2024-01-01T20:00:00Z", HomeTeam: "NYR", AwayTeam: "CHI"},
 	}
 
-	s := NewDiscordSender(server.URL)
+	s := NewDiscordSender(server.URL, "")
 	s.SendScheduleSummary(games)
 
 	expected := "NHL Game Schedule (2 games scheduled)"
 	if received.Embeds[0].Title != expected {
 		t.Errorf("title = %q, want %q", received.Embeds[0].Title, expected)
+	}
+}
+
+// --- Comprehensive end-to-end webhook payload validation ---
+
+// TestDiscordWebhook_FullPayloadValidation_WithGamesAndMention validates the complete
+// Discord webhook payload structure when games are scheduled and a user ID is configured.
+// This test simulates a real Discord webhook server and verifies every field.
+func TestDiscordWebhook_FullPayloadValidation_WithGamesAndMention(t *testing.T) {
+	var received discordMessage
+	var rawBody []byte
+	var requestMethod string
+	var contentType string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestMethod = r.Method
+		contentType = r.Header.Get("Content-Type")
+
+		// Capture raw body for JSON validation
+		buf := make([]byte, r.ContentLength)
+		r.Body.Read(buf)
+		rawBody = buf
+
+		// Also decode into struct
+		json.Unmarshal(rawBody, &received)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	games := []GameInfo{
+		{
+			ID:        "2024020100",
+			GameDate:  "2024-12-25",
+			StartTime: "2024-12-25T18:00:00Z",
+			HomeTeam:  "BOS",
+			AwayTeam:  "CHI",
+		},
+		{
+			ID:        "2024020101",
+			GameDate:  "2024-12-25",
+			StartTime: "2024-12-25T20:30:00Z",
+			HomeTeam:  "NYR",
+			AwayTeam:  "DAL",
+		},
+	}
+	userID := "417487003588755480"
+
+	sender := NewDiscordSender(server.URL, userID)
+	err := sender.SendScheduleSummary(games)
+
+	// --- Request validation ---
+	if err != nil {
+		t.Fatalf("SendScheduleSummary returned error: %v", err)
+	}
+	if requestMethod != http.MethodPost {
+		t.Errorf("HTTP method = %q, want POST", requestMethod)
+	}
+	if contentType != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", contentType)
+	}
+
+	// --- JSON validity ---
+	if !json.Valid(rawBody) {
+		t.Fatalf("payload is not valid JSON: %s", string(rawBody))
+	}
+
+	// --- Top-level structure ---
+	if received.Content != "" {
+		t.Errorf("content = %q, want empty (mention should be in embed description)", received.Content)
+	}
+	if len(received.Embeds) != 1 {
+		t.Fatalf("embed count = %d, want 1", len(received.Embeds))
+	}
+
+	embed := received.Embeds[0]
+
+	// --- Embed title ---
+	expectedTitle := "NHL Game Schedule (2 games scheduled)"
+	if embed.Title != expectedTitle {
+		t.Errorf("embed.Title = %q, want %q", embed.Title, expectedTitle)
+	}
+
+	// --- Embed color (green for games scheduled) ---
+	if embed.Color != 3066993 {
+		t.Errorf("embed.Color = %d, want 3066993 (green)", embed.Color)
+	}
+
+	// --- Embed timestamp (must be valid RFC3339) ---
+	if embed.Timestamp == "" {
+		t.Error("embed.Timestamp is empty, want RFC3339 value")
+	} else {
+		if _, err := time.Parse(time.RFC3339, embed.Timestamp); err != nil {
+			t.Errorf("embed.Timestamp = %q is not valid RFC3339: %v", embed.Timestamp, err)
+		}
+	}
+
+	// --- Embed description: verify all game details ---
+	desc := embed.Description
+
+	// Game 1: CHI @ BOS
+	if !strings.Contains(desc, "**CHI @ BOS**") {
+		t.Errorf("description missing '**CHI @ BOS**' matchup formatting, got:\n%s", desc)
+	}
+	if !strings.Contains(desc, "2024-12-25") {
+		t.Errorf("description missing game date '2024-12-25', got:\n%s", desc)
+	}
+	if !strings.Contains(desc, "2024-12-25T18:00:00Z") {
+		t.Errorf("description missing start time '2024-12-25T18:00:00Z', got:\n%s", desc)
+	}
+
+	// Game 2: DAL @ NYR
+	if !strings.Contains(desc, "**DAL @ NYR**") {
+		t.Errorf("description missing '**DAL @ NYR**' matchup formatting, got:\n%s", desc)
+	}
+	if !strings.Contains(desc, "2024-12-25T20:30:00Z") {
+		t.Errorf("description missing start time '2024-12-25T20:30:00Z', got:\n%s", desc)
+	}
+
+	// User mention at end
+	expectedMention := "<@417487003588755480>"
+	if !strings.HasSuffix(desc, expectedMention) {
+		t.Errorf("description should end with mention %q, got:\n%s", expectedMention, desc)
+	}
+
+	// Verify mention appears only once
+	if strings.Count(desc, expectedMention) != 1 {
+		t.Errorf("mention should appear exactly once, found %d times in:\n%s", strings.Count(desc, expectedMention), desc)
+	}
+}
+
+// TestDiscordWebhook_FullPayloadValidation_NoGames validates the complete
+// Discord webhook payload structure when no games are scheduled.
+func TestDiscordWebhook_FullPayloadValidation_NoGames(t *testing.T) {
+	var received discordMessage
+	var rawBody []byte
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		r.Body.Read(buf)
+		rawBody = buf
+		json.Unmarshal(rawBody, &received)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	// Test with user ID - should NOT add mention when no games
+	sender := NewDiscordSender(server.URL, "417487003588755480")
+	err := sender.SendScheduleSummary([]GameInfo{})
+
+	if err != nil {
+		t.Fatalf("SendScheduleSummary returned error: %v", err)
+	}
+
+	// --- JSON validity ---
+	if !json.Valid(rawBody) {
+		t.Fatalf("payload is not valid JSON: %s", string(rawBody))
+	}
+
+	// --- Top-level structure ---
+	if received.Content != "" {
+		t.Errorf("content = %q, want empty", received.Content)
+	}
+	if len(received.Embeds) != 1 {
+		t.Fatalf("embed count = %d, want 1", len(received.Embeds))
+	}
+
+	embed := received.Embeds[0]
+
+	// --- Embed title (no game count) ---
+	if embed.Title != "NHL Game Schedule" {
+		t.Errorf("embed.Title = %q, want 'NHL Game Schedule'", embed.Title)
+	}
+
+	// --- Embed color (gray for no games) ---
+	if embed.Color != 9807270 {
+		t.Errorf("embed.Color = %d, want 9807270 (gray)", embed.Color)
+	}
+
+	// --- Embed description ---
+	expectedDesc := "No games were identified to schedule."
+	if embed.Description != expectedDesc {
+		t.Errorf("embed.Description = %q, want %q", embed.Description, expectedDesc)
+	}
+
+	// --- Embed timestamp ---
+	if embed.Timestamp == "" {
+		t.Error("embed.Timestamp is empty, want RFC3339 value")
+	}
+}
+
+// TestDiscordWebhook_FullPayloadValidation_SingleGame validates singular grammar
+// and complete payload for a single game.
+func TestDiscordWebhook_FullPayloadValidation_SingleGame(t *testing.T) {
+	var received discordMessage
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	games := []GameInfo{
+		{
+			ID:        "2024020999",
+			GameDate:  "2024-04-15",
+			StartTime: "2024-04-15T19:30:00Z",
+			HomeTeam:  "TOR",
+			AwayTeam:  "MTL",
+		},
+	}
+
+	sender := NewDiscordSender(server.URL, "")
+	err := sender.SendScheduleSummary(games)
+
+	if err != nil {
+		t.Fatalf("SendScheduleSummary returned error: %v", err)
+	}
+
+	embed := received.Embeds[0]
+
+	// --- Singular "game" not "games" ---
+	expectedTitle := "NHL Game Schedule (1 game scheduled)"
+	if embed.Title != expectedTitle {
+		t.Errorf("embed.Title = %q, want %q (singular 'game')", embed.Title, expectedTitle)
+	}
+
+	// --- Green color for scheduled games ---
+	if embed.Color != 3066993 {
+		t.Errorf("embed.Color = %d, want 3066993 (green)", embed.Color)
+	}
+
+	// --- Description has all required parts ---
+	desc := embed.Description
+	requiredParts := []string{
+		"**MTL @ TOR**",      // Matchup with bold formatting
+		"2024-04-15",         // Game date
+		"2024-04-15T19:30:00Z", // Start time
+	}
+	for _, part := range requiredParts {
+		if !strings.Contains(desc, part) {
+			t.Errorf("description missing %q, got:\n%s", part, desc)
+		}
+	}
+
+	// --- No mention without user ID ---
+	if strings.Contains(desc, "<@") {
+		t.Errorf("description should not contain mention without user ID, got:\n%s", desc)
+	}
+}
+
+// TestDiscordWebhook_DescriptionFormat validates the exact formatting of game entries
+func TestDiscordWebhook_DescriptionFormat(t *testing.T) {
+	var received discordMessage
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	games := []GameInfo{
+		{
+			ID:        "1",
+			GameDate:  "2024-01-15",
+			StartTime: "7:00 PM ET",
+			HomeTeam:  "BOS",
+			AwayTeam:  "NYR",
+		},
+	}
+
+	sender := NewDiscordSender(server.URL, "")
+	sender.SendScheduleSummary(games)
+
+	desc := received.Embeds[0].Description
+
+	// Verify exact format: "**AWAY @ HOME**\nDATE at TIME\n\n"
+	expectedFormat := "**NYR @ BOS**\n2024-01-15 at 7:00 PM ET\n\n"
+	if desc != expectedFormat {
+		t.Errorf("description format incorrect.\ngot:\n%q\nwant:\n%q", desc, expectedFormat)
+	}
+}
+
+// TestDiscordWebhook_MentionNotAddedToNoGamesMessage verifies mention is only added
+// when there are games scheduled
+func TestDiscordWebhook_MentionNotAddedToNoGamesMessage(t *testing.T) {
+	var received discordMessage
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	// Even with user ID configured, no mention for empty games
+	sender := NewDiscordSender(server.URL, "123456789")
+	sender.SendScheduleSummary(nil)
+
+	desc := received.Embeds[0].Description
+
+	if strings.Contains(desc, "<@") {
+		t.Errorf("no-games message should not contain mention, got:\n%s", desc)
+	}
+	if desc != "No games were identified to schedule." {
+		t.Errorf("description = %q, want exact no-games message", desc)
 	}
 }
