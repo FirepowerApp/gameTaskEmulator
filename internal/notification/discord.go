@@ -11,6 +11,7 @@ import (
 // DiscordSender sends notifications via Discord webhooks.
 type DiscordSender struct {
 	webhookURL string
+	userID     string
 	httpClient *http.Client
 }
 
@@ -38,13 +39,15 @@ type discordEmbedField struct {
 
 // NewDiscordSender creates a new Discord notification sender.
 // Returns a NoOpSender if the webhook URL is empty.
-func NewDiscordSender(webhookURL string) Sender {
+// The userID parameter is optional and used for @ mentions in notifications.
+func NewDiscordSender(webhookURL, userID string) Sender {
 	if webhookURL == "" {
 		return NewNoOpSender()
 	}
 
 	return &DiscordSender{
 		webhookURL: webhookURL,
+		userID:     userID,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -78,6 +81,11 @@ func (d *DiscordSender) SendScheduleSummary(games []GameInfo) error {
 		for _, game := range games {
 			description += fmt.Sprintf("**%s @ %s**\n%s at %s\n\n",
 				game.AwayTeam, game.HomeTeam, game.GameDate, game.StartTime)
+		}
+
+		// Add user mention at the end of description if configured
+		if d.userID != "" {
+			description += fmt.Sprintf("<@%s>", d.userID)
 		}
 
 		title := fmt.Sprintf("NHL Game Schedule (%d game", len(games))
