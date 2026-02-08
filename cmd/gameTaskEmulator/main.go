@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
@@ -45,6 +46,7 @@ type Config struct {
 	LocalMode         bool   // Whether to send requests to local host
 	HostURL           string // Custom host URL for sending requests
 	DiscordWebhookURL string // Discord webhook URL for notifications
+	DiscordUserID     string // Discord user ID for mentions
 	EmulatorHost      string // Cloud Tasks emulator host (default: localhost:8123)
 }
 
@@ -138,6 +140,49 @@ var cityCodeToTeamID = map[string]int{
 	"WSH": 15, // Washington Capitals
 }
 
+// loadEnvFile loads environment variables from a .env file if it exists.
+// It does not override existing environment variables.
+func loadEnvFile() {
+	file, err := os.Open(".env")
+	if err != nil {
+		// .env file doesn't exist, which is fine
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Parse KEY=VALUE
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		// Remove surrounding quotes if present
+		if len(value) >= 2 {
+			if (value[0] == '"' && value[len(value)-1] == '"') ||
+				(value[0] == '\'' && value[len(value)-1] == '\'') {
+				value = value[1 : len(value)-1]
+			}
+		}
+
+		// Only set if not already set in environment
+		if os.Getenv(key) == "" {
+			os.Setenv(key, value)
+		}
+	}
+}
+
 // parseTeamIdentifier converts a team identifier (city code or numeric ID) to a team ID
 func parseTeamIdentifier(identifier string) (int, error) {
 	identifier = strings.TrimSpace(strings.ToUpper(identifier))
@@ -158,6 +203,9 @@ func parseTeamIdentifier(identifier string) (int, error) {
 
 // parseFlags parses and validates command-line flags
 func parseFlags() *Config {
+	// Load .env file before parsing flags so environment variables are available
+	loadEnvFile()
+
 	config := &Config{}
 
 	var teamsStr string
@@ -183,6 +231,9 @@ func parseFlags() *Config {
 	if config.DiscordWebhookURL == "" {
 		config.DiscordWebhookURL = os.Getenv("DISCORD_WEBHOOK_URL")
 	}
+
+	// Check for Discord user ID from environment variable
+	config.DiscordUserID = os.Getenv("DISCORD_USER_ID")
 
 	// Set emulator host from flag, environment variable, or default
 	if emulatorHost != "" {
@@ -512,7 +563,11 @@ func main() {
 
 	// Initialize notification sender (dependency injection)
 	// The main function only knows about the Sender interface, not the concrete implementation
-	var notifier notification.Sender = notification.NewDiscordSender(config.DiscordWebhookURL)
+	var opts []notification.DiscordOption
+	if config.DiscordUserID != "" {
+		opts = append(opts, notification.WithUserID(config.DiscordUserID))
+	}
+	var notifier notification.Sender = notification.NewDiscordSender(config.DiscordWebhookURL, opts...)
 	if notifier.IsEnabled() {
 		log.Printf("Discord notifications enabled")
 	} else {
