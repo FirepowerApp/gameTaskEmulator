@@ -563,7 +563,11 @@ func main() {
 
 	// Initialize notification sender (dependency injection)
 	// The main function only knows about the Sender interface, not the concrete implementation
-	var notifier notification.Sender = notification.NewDiscordSender(config.DiscordWebhookURL, config.DiscordUserID)
+	var opts []notification.DiscordOption
+	if config.DiscordUserID != "" {
+		opts = append(opts, notification.WithUserID(config.DiscordUserID))
+	}
+	var notifier notification.Sender = notification.NewDiscordSender(config.DiscordWebhookURL, opts...)
 	if notifier.IsEnabled() {
 		log.Printf("Discord notifications enabled")
 	} else {

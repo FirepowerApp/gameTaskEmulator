@@ -37,21 +37,36 @@ type discordEmbedField struct {
 	Inline bool   `json:"inline,omitempty"`
 }
 
+// DiscordOption configures a DiscordSender.
+type DiscordOption func(*DiscordSender)
+
+// WithUserID sets the Discord user ID for @ mentions in notifications.
+func WithUserID(userID string) DiscordOption {
+	return func(d *DiscordSender) {
+		d.userID = userID
+	}
+}
+
 // NewDiscordSender creates a new Discord notification sender.
 // Returns a NoOpSender if the webhook URL is empty.
-// The userID parameter is optional and used for @ mentions in notifications.
-func NewDiscordSender(webhookURL, userID string) Sender {
+// Use WithUserID option to enable @ mentions in notifications.
+func NewDiscordSender(webhookURL string, opts ...DiscordOption) Sender {
 	if webhookURL == "" {
 		return NewNoOpSender()
 	}
 
-	return &DiscordSender{
+	d := &DiscordSender{
 		webhookURL: webhookURL,
-		userID:     userID,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
 	}
+
+	for _, opt := range opts {
+		opt(d)
+	}
+
+	return d
 }
 
 // Send sends a simple text message to Discord.
