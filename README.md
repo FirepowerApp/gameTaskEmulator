@@ -230,8 +230,10 @@ A `docker-compose.yml` is included to run a local Cloud Tasks emulator so you ca
 3. In a separate terminal, build and run the binary:
    ```bash
    go run build.go -target gameTaskEmulator
-   ./bin/gameTaskEmulator -local -today -discord-webhook "YOUR_WEBHOOK_URL"
+   ./bin/gameTaskEmulator -local -today
    ```
+
+   The binary automatically loads environment variables from `.env` if present, so your `DISCORD_WEBHOOK_URL` will be picked up automatically.
 
 The binary fetches live game data from the NHL API, creates tasks in the local emulator, and sends a schedule summary to your Discord channel. Task dispatch will fail (nothing is running at the target URL), which is the expected behavior — the point is to test scheduling and notifications without affecting production.
 
@@ -263,6 +265,18 @@ This builds the app from the Dockerfile and runs it with `network_mode: host` so
 # Via compose (reads DISCORD_WEBHOOK_URL from .env)
 docker compose --profile app run --rm app -local -today -teams CHI
 ```
+
+#### Running the Scheduled Container
+
+To run the cron-based scheduled container (for automated weekly execution):
+
+```bash
+docker compose --profile scheduled up
+```
+
+This starts both the Cloud Tasks emulator and the scheduled container. Configure it via environment variables in `.env`:
+- `TEAM_CODE`: Team code(s) to track (e.g., `CHI` or `CHI,DAL,BOS`)
+- `ADDITIONAL_FLAGS`: Flags passed to the binary (default: `-local -today`)
 
 #### Stopping
 
