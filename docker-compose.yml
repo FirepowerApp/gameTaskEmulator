@@ -32,6 +32,8 @@ services:
     ports:
       - "8123:8123"
     command:
+      - "-host"
+      - "0.0.0.0"
       - "-queue"
       - "projects/localproject/locations/us-south1/queues/gameschedule"
     extra_hosts:
@@ -49,6 +51,7 @@ services:
       - cloud-tasks-emulator
 
   gametask-emulator-scheduled:
+    profiles: ["scheduled"]
     build:
       context: .
       dockerfile: Dockerfile.scheduled
