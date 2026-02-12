@@ -46,6 +46,8 @@ type Config struct {
 	HostURL           string // Custom host URL for sending requests
 	DiscordWebhookURL string // Discord webhook URL for notifications
 	EmulatorHost      string // Cloud Tasks emulator host (default: localhost:8123)
+	RedisURL          string // Redis connection URL for notifications
+	RedisQueueName    string // Redis queue name for notifications
 }
 
 // Game represents a single NHL game with relevant information
@@ -176,12 +178,26 @@ func parseFlags() *Config {
 	flag.StringVar(&config.HostURL, "host", "", "Custom host URL to send requests to")
 	flag.StringVar(&config.DiscordWebhookURL, "discord-webhook", "", "Discord webhook URL for notifications (can also be set via DISCORD_WEBHOOK_URL env var)")
 	flag.StringVar(&emulatorHost, "emulator", "", "Cloud Tasks emulator host (default: localhost:8123 or CLOUD_TASKS_EMULATOR env var)")
+	flag.StringVar(&config.RedisURL, "redis-url", "", "Redis connection URL for notifications (can also be set via REDIS_URL env var)")
+	flag.StringVar(&config.RedisQueueName, "redis-queue", "", "Redis queue name for notifications (default: game-notifications, can also be set via REDIS_QUEUE_NAME env var)")
 
 	flag.Parse()
 
 	// Check for Discord webhook URL from environment variable if not set via flag
 	if config.DiscordWebhookURL == "" {
 		config.DiscordWebhookURL = os.Getenv("DISCORD_WEBHOOK_URL")
+	}
+
+	// Check for Redis URL from environment variable if not set via flag
+	if config.RedisURL == "" {
+		config.RedisURL = os.Getenv("REDIS_URL")
+	}
+
+	// Check for Redis queue name from environment variable if not set via flag
+	if config.RedisQueueName == "" {
+		if queueName := os.Getenv("REDIS_QUEUE_NAME"); queueName != "" {
+			config.RedisQueueName = queueName
+		}
 	}
 
 	// Set emulator host from flag, environment variable, or default
@@ -512,11 +528,26 @@ func main() {
 
 	// Initialize notification sender (dependency injection)
 	// The main function only knows about the Sender interface, not the concrete implementation
-	var notifier notification.Sender = notification.NewDiscordSender(config.DiscordWebhookURL)
-	if notifier.IsEnabled() {
-		log.Printf("Discord notifications enabled")
+	// Priority: Redis > Discord > NoOp
+	var notifier notification.Sender
+	if config.RedisURL != "" {
+		notifier = notification.NewRedisSender(config.RedisURL, config.RedisQueueName)
+		if notifier.IsEnabled() {
+			log.Printf("Redis notifications enabled (URL: %s, Queue: %s)", config.RedisURL, config.RedisQueueName)
+		} else {
+			log.Printf("Redis notifications disabled (failed to connect)")
+			notifier = notification.NewNoOpSender()
+		}
+	} else if config.DiscordWebhookURL != "" {
+		notifier = notification.NewDiscordSender(config.DiscordWebhookURL)
+		if notifier.IsEnabled() {
+			log.Printf("Discord notifications enabled")
+		} else {
+			log.Printf("Discord notifications disabled (no webhook URL configured)")
+		}
 	} else {
-		log.Printf("Discord notifications disabled (no webhook URL configured)")
+		notifier = notification.NewNoOpSender()
+		log.Printf("Notifications disabled (no Redis URL or Discord webhook configured)")
 	}
 
 	// Connect to Cloud Tasks service (emulator or production)

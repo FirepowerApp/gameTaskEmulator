@@ -12,6 +12,7 @@ This program fetches NHL game schedules and creates Google Cloud Tasks for game 
 - **Production Support**: Configurable for both local development and production environments
 - **Cloud Task Integration**: Creates Google Cloud Tasks that integrate with the existing game monitoring system
 - **Discord Notifications**: Optional Discord webhook notifications with a summary of all scheduled games
+- **Redis Queue Support**: Send notifications to a Redis queue instead of Discord webhooks
 
 ## Usage
 
@@ -46,6 +47,8 @@ Or send to a custom host:
 - `-location LOCATION`: GCP Location (default: "us-south1")
 - `-queue QUEUE_NAME`: Task Queue name (default: "gameschedule")
 - `-discord-webhook URL`: Discord webhook URL for notifications (can also be set via `DISCORD_WEBHOOK_URL` environment variable)
+- `-redis-url URL`: Redis connection URL for notifications (can also be set via `REDIS_URL` environment variable, e.g., `redis://localhost:6379/0`)
+- `-redis-queue NAME`: Redis queue name for notifications (default: "game-notifications", can also be set via `REDIS_QUEUE_NAME` environment variable)
 
 ### Examples
 
@@ -87,6 +90,16 @@ Or send to a custom host:
 **Send tasks to production cloud function**:
 ```bash
 ./gameTaskEmulator -host https://us-south1-myproject.cloudfunctions.net/watchGameUpdates -today
+```
+
+**Send notifications to Redis queue**:
+```bash
+./gameTaskEmulator -local -today -teams CHI -redis-url redis://localhost:6379/0
+```
+
+**Send to Redis with custom queue name**:
+```bash
+./gameTaskEmulator -local -today -teams DAL -redis-url redis://localhost:6379/0 -redis-queue nhl-games
 ```
 
 ## NHL Team IDs and City Codes
@@ -224,13 +237,53 @@ While the program primarily uses command-line flags, the following environment v
 
 - `GOOGLE_APPLICATION_CREDENTIALS`: Path to GCP service account key (required for production mode)
 - `DISCORD_WEBHOOK_URL`: Discord webhook URL for notifications (optional, can also be set via `-discord-webhook` flag)
+- `REDIS_URL`: Redis connection URL for notifications (optional, can also be set via `-redis-url` flag)
+- `REDIS_QUEUE_NAME`: Redis queue name for notifications (optional, can also be set via `-redis-queue` flag, default: "game-notifications")
 
 ```bash
 export GOOGLE_APPLICATION_CREDENTIALS="path/to/service-account-key.json"
+
+# For Discord notifications
 export DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+
+# For Redis notifications (takes priority over Discord if both are configured)
+export REDIS_URL="redis://localhost:6379/0"
+export REDIS_QUEUE_NAME="game-notifications"  # Optional, defaults to "game-notifications"
 ```
 
-When a Discord webhook URL is configured, the application sends a single summary notification after all games have been processed. The notification includes the date, time, and opponents for each scheduled game, or a message indicating that no games were identified.
+### Notification Priority
+
+When both Redis and Discord are configured, the application uses **Redis** for notifications (Redis takes priority). The notification priority order is:
+1. **Redis** (if `REDIS_URL` or `-redis-url` is set)
+2. **Discord** (if `DISCORD_WEBHOOK_URL` or `-discord-webhook` is set)
+3. **None** (no notifications)
+
+When a notification sender is configured, the application sends a single summary notification after all games have been processed. The notification includes the date, time, and opponents for each scheduled game, or a message indicating that no games were identified.
+
+#### Redis Message Format
+
+Redis notifications are sent to the configured queue as JSON messages with the following structure:
+
+```json
+{
+  "type": "schedule_summary",
+  "games": [
+    {
+      "ID": "2024020123",
+      "GameDate": "2024-03-15",
+      "StartTime": "2024-03-15T19:30:00Z",
+      "HomeTeam": "DAL",
+      "AwayTeam": "CHI"
+    }
+  ],
+  "timestamp": "2024-03-15T12:00:00Z"
+}
+```
+
+Message types:
+- `schedule_summary`: Contains an array of scheduled games
+- `no_games`: Sent when no games were identified (empty games array)
+- `simple`: Simple text message (used by the `Send()` method)
 
 ### Production Configuration
 
@@ -261,6 +314,7 @@ This program integrates with:
 - **Google Cloud Tasks**: For task scheduling
 - **CrashTheCrease Backend**: Via the `watchGameUpdates` handler
 - **Discord Webhooks**: For optional schedule summary notifications
+- **Redis**: For optional queue-based notifications (takes priority over Discord)
 
 ## Troubleshooting
 
