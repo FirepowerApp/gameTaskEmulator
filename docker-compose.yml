@@ -1,17 +1,49 @@
-version: '3.8'
+# =============================================================================
+# Docker Compose Profiles for Game Task Emulator
+# =============================================================================
+#
+# This compose file supports multiple deployment scenarios using profiles.
+#
+# Available Profiles:
+#   scheduled  - Runs tasks on a cron schedule (Monday 5:00 AM)
+#   oneshot    - Executes task once and exits (useful for testing/manual runs)
+#   dev        - Development mode with interactive shell access
+#   prod       - Production deployment with GCP credentials
+#
+# Usage:
+#   List all profiles:        make docker-profiles  (or docker compose config --profiles)
+#   Run scheduled mode:       docker compose --profile scheduled up -d
+#   Run one-shot:             docker compose --profile oneshot up
+#   Run dev mode:             docker compose --profile dev run --rm app
+#   Run multiple profiles:    docker compose --profile scheduled --profile oneshot up -d
+#
+# For detailed information, see DOCKER_INSTALL.md
+# =============================================================================
 
 services:
-  gametask-emulator-scheduled:
+  # ---------------------------------------------------------------------------
+  # SCHEDULED PROFILE - Cronjob Deployment
+  # ---------------------------------------------------------------------------
+  # Description: Runs gameTaskEmulator on a schedule using cron (every Monday at 5:00 AM)
+  # Use Case: Automated weekly game scheduling for production or staging
+  # Container: Runs continuously in the background with cron daemon
+  # ---------------------------------------------------------------------------
+  app-scheduled:
+    profiles: ["scheduled"]
     build:
       context: .
       dockerfile: Dockerfile.scheduled
     container_name: gametask-emulator-scheduled
     restart: unless-stopped
 
-    # Environment variables for configuration
+    labels:
+      com.gametask.profile: "scheduled"
+      com.gametask.description: "Cronjob deployment - runs tasks on schedule (Monday 5:00 AM)"
+      com.gametask.use-case: "Automated weekly game scheduling"
+
     environment:
       # Timezone - set this to your local timezone
-      - TZ=America/Chicago
+      - TZ=${TZ:-America/Chicago}
 
       # Team code(s) - comma-separated list (e.g., CHI,DAL,BOS)
       # Leave empty or comment out to use default team
@@ -41,7 +73,7 @@ services:
         max-size: "10m"
         max-file: "3"
 
-    # Health check (optional - checks if cron is running)
+    # Health check (checks if cron is running)
     healthcheck:
       test: ["CMD", "pgrep", "crond"]
       interval: 60s
@@ -49,27 +81,143 @@ services:
       retries: 3
       start_period: 10s
 
-# Example configurations:
+  # ---------------------------------------------------------------------------
+  # ONE-SHOT PROFILE - Single Execution
+  # ---------------------------------------------------------------------------
+  # Description: Runs gameTaskEmulator once and exits
+  # Use Case: Manual execution, testing, or triggered runs
+  # Container: Exits after completion (use "docker compose up" to see output)
+  # ---------------------------------------------------------------------------
+  app-oneshot:
+    profiles: ["oneshot"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gametask-emulator-oneshot
+
+    labels:
+      com.gametask.profile: "oneshot"
+      com.gametask.description: "One-shot execution - runs task once and exits"
+      com.gametask.use-case: "Manual execution, testing, or triggered runs"
+
+    environment:
+      - TZ=${TZ:-America/Chicago}
+
+    # Command line arguments - customize as needed
+    # Examples:
+    #   command: ["-local", "-today"]
+    #   command: ["-local", "-teams", "CHI,DAL", "-today"]
+    #   command: ["-host", "https://api.example.com", "-today", "-all"]
+    command: ${ONESHOT_ARGS:--local -today}
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ---------------------------------------------------------------------------
+  # DEV PROFILE - Development/Interactive Mode
+  # ---------------------------------------------------------------------------
+  # Description: Interactive container for development and debugging
+  # Use Case: Testing, debugging, or interactive exploration
+  # Container: Provides shell access - run with: docker compose --profile dev run --rm app-dev
+  # ---------------------------------------------------------------------------
+  app-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gametask-emulator-dev
+
+    labels:
+      com.gametask.profile: "dev"
+      com.gametask.description: "Development mode - interactive shell for testing and debugging"
+      com.gametask.use-case: "Development, testing, debugging"
+
+    environment:
+      - TZ=${TZ:-America/Chicago}
+
+    # Override entrypoint for interactive shell
+    entrypoint: ["/bin/sh"]
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # Mount source code for development (optional - uncomment if needed)
+    # volumes:
+    #   - .:/workspace:ro
+
+    stdin_open: true
+    tty: true
+
+  # ---------------------------------------------------------------------------
+  # PROD PROFILE - Production Deployment
+  # ---------------------------------------------------------------------------
+  # Description: Production scheduled deployment with GCP credentials
+  # Use Case: Production environment with Google Cloud Tasks
+  # Container: Runs continuously with cron, includes GCP authentication
+  #
+  # IMPORTANT: Before using this profile, you MUST:
+  #   1. Create a .env file with GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json
+  #   2. Ensure the GCP key file exists at the specified path
+  # ---------------------------------------------------------------------------
+  app-prod:
+    profiles: ["prod"]
+    build:
+      context: .
+      dockerfile: Dockerfile.scheduled
+    container_name: gametask-emulator-prod
+    restart: unless-stopped
+
+    labels:
+      com.gametask.profile: "prod"
+      com.gametask.description: "Production deployment - scheduled with GCP credentials"
+      com.gametask.use-case: "Production environment with Google Cloud Tasks"
+
+    environment:
+      - TZ=${TZ:-America/Chicago}
+      - TEAM_CODE=${TEAM_CODE:-}
+      - ADDITIONAL_FLAGS=${ADDITIONAL_FLAGS:--today -prod}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-/secrets/gcp-key.json}
+
+    # GCP credentials must be mounted for production
+    # Note: If GOOGLE_APPLICATION_CREDENTIALS is not set, docker compose will fail
+    # This is intentional to prevent running prod profile without credentials
+    volumes:
+      - ${GOOGLE_APPLICATION_CREDENTIALS:-./nonexistent-gcp-key.json}:/secrets/gcp-key.json:ro
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    healthcheck:
+      test: ["CMD", "pgrep", "crond"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+# =============================================================================
+# Environment Variable Examples
+# =============================================================================
 #
-# Default configuration (local task queue):
-#   environment:
-#     - TZ=America/Chicago
-#     - TEAM_CODE=CHI
-#     - ADDITIONAL_FLAGS=-local -today
+# Create a .env file in the same directory as this docker-compose.yml:
 #
-# For multiple teams with local task queue:
-#   environment:
-#     - TEAM_CODE=CHI,DAL,BOS
-#     - ADDITIONAL_FLAGS=-local -today
+# # Basic configuration
+# TZ=America/Chicago
+# TEAM_CODE=CHI,DAL
 #
-# For all teams with local task queue:
-#   environment:
-#     - ADDITIONAL_FLAGS=-local -today -all
+# # For scheduled/local mode
+# ADDITIONAL_FLAGS=-local -today
 #
-# For production mode with GCP credentials:
-#   environment:
-#     - TEAM_CODE=CHI
-#     - ADDITIONAL_FLAGS=-today -prod
-#     - GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp-key.json
-#   volumes:
-#     - ./path/to/your/gcp-key.json:/secrets/gcp-key.json:ro
+# # For one-shot mode
+# ONESHOT_ARGS=-local -today -teams CHI
+#
+# # For production mode
+# GOOGLE_APPLICATION_CREDENTIALS=./path/to/gcp-key.json
+# ADDITIONAL_FLAGS=-today -prod
+#
+# =============================================================================
