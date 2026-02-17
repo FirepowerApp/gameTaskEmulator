@@ -107,7 +107,7 @@ jobs:
           VARS='$APP_NAME $NAMESPACE $IMAGE $REPLICAS $MEMORY_REQUEST $MEMORY_LIMIT $CPU_REQUEST $CPU_LIMIT'
 
           # Process and apply all K8s manifests
-          for f in k8s/*.yaml; do
+          for f in deployment/kubernetes/*.yaml; do
             echo "Applying $f..."
             envsubst "$VARS" < "$f" | kubectl apply -f -
           done
