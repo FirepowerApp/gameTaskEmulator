@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build, Push, and Deploy
 
 on:
   pull_request:
@@ -7,7 +7,6 @@ on:
       - main
 
 env:
-  DOCKERHUB_IMAGE: blnelson/firepowergametaskemulator
   GHCR_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
@@ -17,6 +16,8 @@ jobs:
       contents: read
       packages: write
     if: github.event.pull_request.merged == true
+    outputs:
+      image: ${{ steps.image-ref.outputs.image }}
 
     steps:
       - name: Checkout repository
@@ -45,7 +46,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.DOCKERHUB_IMAGE }}
+            ${{ vars.DOCKERHUB_IMAGE }}
             ${{ env.GHCR_IMAGE }}
           tags: |
             type=sha,prefix=sha-
@@ -61,3 +62,55 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
+
+      - name: Set image reference
+        id: image-ref
+        run: echo "image=${{ env.GHCR_IMAGE }}:sha-$(echo '${{ github.sha }}' | cut -c1-7)" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Deploy to cluster
+        env:
+          APP_NAME: ${{ vars.APP_NAME }}
+          NAMESPACE: ${{ vars.KUBE_NAMESPACE }}
+          IMAGE: ${{ needs.build-and-push.outputs.image }}
+          REPLICAS: ${{ vars.REPLICAS }}
+          MEMORY_REQUEST: ${{ vars.MEMORY_REQUEST }}
+          MEMORY_LIMIT: ${{ vars.MEMORY_LIMIT }}
+          CPU_REQUEST: ${{ vars.CPU_REQUEST }}
+          CPU_LIMIT: ${{ vars.CPU_LIMIT }}
+        run: |
+          # Set defaults for optional variables
+          export REPLICAS="${REPLICAS:-1}"
+          export MEMORY_REQUEST="${MEMORY_REQUEST:-64Mi}"
+          export MEMORY_LIMIT="${MEMORY_LIMIT:-128Mi}"
+          export CPU_REQUEST="${CPU_REQUEST:-50m}"
+          export CPU_LIMIT="${CPU_LIMIT:-200m}"
+
+          VARS='$APP_NAME $NAMESPACE $IMAGE $REPLICAS $MEMORY_REQUEST $MEMORY_LIMIT $CPU_REQUEST $CPU_LIMIT'
+
+          # Process and apply all K8s manifests
+          for f in k8s/*.yaml; do
+            echo "Applying $f..."
+            envsubst "$VARS" < "$f" | kubectl apply -f -
+          done
+
+          # Wait for deployment rollout
+          kubectl rollout status deployment/"$APP_NAME" -n "$NAMESPACE" --timeout=120s

@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: $APP_NAME
+  namespace: $NAMESPACE
+  labels:
+    app: $APP_NAME
+spec:
+  replicas: $REPLICAS
+  selector:
+    matchLabels:
+      app: $APP_NAME
+  template:
+    metadata:
+      labels:
+        app: $APP_NAME
+    spec:
+      containers:
+        - name: $APP_NAME
+          image: $IMAGE
+          envFrom:
+            - configMapRef:
+                name: $APP_NAME-config
+                optional: true
+            - secretRef:
+                name: $APP_NAME-secrets
+                optional: true
+          resources:
+            requests:
+              memory: $MEMORY_REQUEST
+              cpu: $CPU_REQUEST
+            limits:
+              memory: $MEMORY_LIMIT
+              cpu: $CPU_LIMIT
+      restartPolicy: Always
